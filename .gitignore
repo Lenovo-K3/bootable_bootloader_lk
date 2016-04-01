@@ -10,3 +10,9 @@ target/*/tools/mkheader
 cscope.*
 ncscope.*
 
+#
+# Generated out files
+#
+build-msm8916/
+mansi/*.zip
+mansi/emmc_appsboot.mbn
