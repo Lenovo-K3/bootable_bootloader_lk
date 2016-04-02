@@ -58,7 +58,7 @@ echo -e "$cyan Clean old files $nocol";
 	rm ${KERNEL_DIR}/mansi/emmc_appsboot.mbn
 
 echo -e "$cyan Build aboot $nocol";
-	make O=${OUT_DIR} msm8916 EMMC_BOOT=1
+	make O=${OUT_DIR} msm8916
 
 if ! [ -a $ABOOT_IMG ]; then
 echo -e "$red Kernel Compilation failed! Fix the errors! $nocol";
