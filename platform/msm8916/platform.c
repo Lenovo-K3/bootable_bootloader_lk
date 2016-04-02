@@ -84,9 +84,6 @@ void platform_early_init(void)
 
 int qtmr_irq()
 {
-	if (platform_is_msm8939() || platform_is_msm8929())
-		return INT_QTMR_FRM_0_PHYSICAL_TIMER_EXP_8x39;
-	else
 		return INT_QTMR_FRM_0_PHYSICAL_TIMER_EXP_8x16;
 }
 

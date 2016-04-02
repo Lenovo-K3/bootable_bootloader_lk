@@ -119,7 +119,7 @@ static struct pll_vote_clk gpll1_clk_src =
 	.parent       = &cxo_clk_src.c,
 
 	.c = {
-		.rate     = 614400000,
+		.rate     = 884736000,
 		.dbg_name = "gpll1_clk_src",
 		.ops      = &clk_ops_pll_vote,
 	},
@@ -135,7 +135,6 @@ static struct clk_freq_tbl ftbl_gcc_sdcc1_2_apps_clk[] =
 	F( 50000000,  gpll0,  16,   0,   0),
 	F(100000000,  gpll0,   8,   0,   0),
 	F(177770000,  gpll0, 4.5,   0,   0),
-	F(200000000,  gpll0,   4,   0,   0),
 	F_END
 };
 

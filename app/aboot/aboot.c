@@ -1568,9 +1568,6 @@ void write_device_info_mmc(device_info *dev)
 	uint8_t lun = 0;
 	uint32_t ret = 0;
 
-	if (devinfo_present)
-		index = partition_get_index("devinfo");
-	else
 		index = partition_get_index("aboot");
 
 	ptn = partition_get_offset(index);
@@ -3367,14 +3364,15 @@ void aboot_fastboot_register_commands(void)
 						/* move commands enclosed within the below ifndef to here
 						 * if they need to be enabled in user build.
 						 */
-#ifndef DISABLE_FASTBOOT_CMDS
-						/* Register the following commands only for non-user builds */
 						{"flash:", cmd_flash},
 						{"erase:", cmd_erase},
 						{"boot", cmd_boot},
 						{"continue", cmd_continue},
 						{"reboot", cmd_reboot},
 						{"reboot-bootloader", cmd_reboot_bootloader},
+						
+#ifndef DISABLE_FASTBOOT_CMDS
+						/* Register the following commands only for non-user builds */
 						{"oem unlock", cmd_oem_unlock},
 						{"oem unlock-go", cmd_oem_unlock_go},
 						{"oem lock", cmd_oem_lock},

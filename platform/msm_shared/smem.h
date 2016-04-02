@@ -203,46 +203,12 @@ typedef struct {
 	unsigned int bl_error_code;
 } boot_ssd_status;
 
-#if PLATFORM_MSM7X30
-
-typedef struct {
-	boot_symmetric_key_info key_info;
-	uint32_t boot_flags;
-	uint32_t boot_key_press[5];
-	uint32_t time_tick;
-	boot_ssd_status status;
-	uint8_t buff_align[4];
-} boot_info_for_apps;
-
-#elif PLATFORM_MSM7K
-
-typedef struct {
-	uint32_t apps_img_start_addr;
-	uint32_t boot_flags;
-	boot_ssd_status status;
-} boot_info_for_apps;
-
-#elif PLATFORM_MSM7X27A
-
-typedef struct {
-	uint32_t apps_img_start_addr;
-	uint32_t boot_flags;
-	boot_ssd_status status;
-	boot_symmetric_key_info key_info;
-	uint16_t boot_key_press[10];
-	uint32_t timetick;
-	uint8_t PAD[28];
-} boot_info_for_apps;
-
-#else
-
 /* Dummy structure to keep it for other targets */
 typedef struct {
 	uint32_t boot_flags;
 	boot_ssd_status status;
 } boot_info_for_apps;
 
-#endif
 
 /* chip information */
 enum {
