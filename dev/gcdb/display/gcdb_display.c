@@ -90,13 +90,12 @@ static uint32_t mdss_dsi_panel_clock(uint8_t enable,
 	return ret;
 }
 
-static int mdss_dsi_panel_power(uint8_t enable,
-				struct msm_panel_info *pinfo)
+static int mdss_dsi_panel_power(uint8_t enable)
 {
 	int ret = NO_ERROR;
 
 	if (enable) {
-		ret = target_ldo_ctrl(enable, pinfo);
+		ret = target_ldo_ctrl(enable);
 		if (ret) {
 			dprintf(CRITICAL, "LDO control enable failed\n");
 			return ret;
@@ -119,7 +118,7 @@ static int mdss_dsi_panel_power(uint8_t enable,
 			return ret;
 		}
 
-		ret = target_ldo_ctrl(enable, pinfo);
+		ret = target_ldo_ctrl(enable);
 		if (ret) {
 			dprintf(CRITICAL, "ldo control disable failed\n");
 			return ret;
@@ -160,34 +159,7 @@ static int mdss_dsi_bl_enable(uint8_t enable)
 	return ret;
 }
 
-static bool mdss_dsi_set_panel_node(char *panel_name, char **dsi_id,
-		char **panel_node, char **slave_panel_node, int *panel_mode)
-{
-	if (!strcmp(panel_name, SIM_VIDEO_PANEL)) {
-		*dsi_id = SIM_DSI_ID;
-		*panel_node = SIM_VIDEO_PANEL_NODE;
-		*panel_mode = 0;
-	} else if (!strcmp(panel_name, SIM_DUALDSI_VIDEO_PANEL)) {
-		*dsi_id = SIM_DSI_ID;
-		*panel_node = SIM_DUALDSI_VIDEO_PANEL_NODE;
-		*slave_panel_node = SIM_DUALDSI_VIDEO_SLAVE_PANEL_NODE;
-		*panel_mode = 1;
-	} else if (!strcmp(panel_name, SIM_CMD_PANEL)) {
-		*dsi_id = SIM_DSI_ID;
-		*panel_node = SIM_CMD_PANEL_NODE;
-		*panel_mode = 0;
-	} else if (!strcmp(panel_name, SIM_DUALDSI_CMD_PANEL)) {
-		*dsi_id = SIM_DSI_ID;
-		*panel_node = SIM_DUALDSI_CMD_PANEL_NODE;
-		*slave_panel_node = SIM_DUALDSI_CMD_SLAVE_PANEL_NODE;
-		*panel_mode = 1;
-	} else {
-		return false;
-	}
-	return true;
-}
-
-bool gcdb_display_cmdline_arg(char *panel_name, char *pbuf, uint16_t buf_size)
+bool gcdb_display_cmdline_arg(char *pbuf, uint16_t buf_size)
 {
 	char *dsi_id = NULL;
 	char *panel_node = NULL;
@@ -195,43 +167,42 @@ bool gcdb_display_cmdline_arg(char *panel_name, char *pbuf, uint16_t buf_size)
 	uint16_t dsi_id_len = 0, panel_node_len = 0, slave_panel_node_len = 0;
 	uint32_t arg_size = 0;
 	bool ret = true;
-	bool rc;
 	char *default_str;
 	int panel_mode = SPLIT_DISPLAY_FLAG | DUAL_PIPE_FLAG | DST_SPLIT_FLAG;
 	int prefix_string_len = strlen(DISPLAY_CMDLINE_PREFIX);
 
-	panel_name += strspn(panel_name, " ");
-
-	rc = mdss_dsi_set_panel_node(panel_name, &dsi_id, &panel_node,
-			&slave_panel_node, &panel_mode);
-	if (!rc) {
-		if (panelstruct.paneldata && target_cont_splash_screen()) {
-			dsi_id = panelstruct.paneldata->panel_controller;
-			panel_node = panelstruct.paneldata->panel_node_id;
-			panel_mode =
-				panelstruct.paneldata->panel_operating_mode &
-								panel_mode;
-			slave_panel_node =
-				panelstruct.paneldata->slave_panel_node_id;
-		} else {
-			if (target_is_edp())
-				default_str = "0:edp:";
-			else
-				default_str = "0:dsi:0:";
-
-			arg_size = prefix_string_len + strlen(default_str);
-			if (buf_size < arg_size) {
-				dprintf(CRITICAL, "display command line buffer is small\n");
-				return false;
-			}
-
-			strlcpy(pbuf, DISPLAY_CMDLINE_PREFIX, buf_size);
-			pbuf += prefix_string_len;
-			buf_size -= prefix_string_len;
-
-			strlcpy(pbuf, default_str, buf_size);
-			return true;
+	if (panelstruct.paneldata)
+	{
+		dsi_id = panelstruct.paneldata->panel_controller;
+		panel_node = panelstruct.paneldata->panel_node_id;
+		panel_mode = panelstruct.paneldata->panel_operating_mode &
+							panel_mode;
+		slave_panel_node = panelstruct.paneldata->slave_panel_node_id;
+	}
+	else
+	{
+		if (target_is_edp())
+		{
+			default_str = "0:edp:";
 		}
+		else
+		{
+			default_str = "0:dsi:0:";
+		}
+
+		arg_size = prefix_string_len + strlen(default_str);
+		if (buf_size < arg_size)
+		{
+			dprintf(CRITICAL, "display command line buffer is small\n");
+			return false;
+		}
+
+		strlcpy(pbuf, DISPLAY_CMDLINE_PREFIX, buf_size);
+		pbuf += prefix_string_len;
+		buf_size -= prefix_string_len;
+
+		strlcpy(pbuf, default_str, buf_size);
+		return true;
 	}
 
 	if (dsi_id == NULL || panel_node == NULL) {
@@ -246,19 +217,23 @@ bool gcdb_display_cmdline_arg(char *panel_name, char *pbuf, uint16_t buf_size)
 
 	dsi_id_len = strlen(dsi_id);
 	panel_node_len = strlen(panel_node);
-	if (!slave_panel_node)
-		slave_panel_node = NO_PANEL_CONFIG;
-	slave_panel_node_len = strlen(slave_panel_node);
+	if (slave_panel_node)
+		slave_panel_node_len = strlen(slave_panel_node);
 
 	arg_size = prefix_string_len + dsi_id_len + panel_node_len +
 						LK_OVERRIDE_PANEL_LEN + 1;
 
-	arg_size += DSI_1_STRING_LEN + slave_panel_node_len;
+	/* For dual pipe or split display */
+	if (panel_mode)
+		arg_size += DSI_1_STRING_LEN + slave_panel_node_len;
 
-	if (buf_size < arg_size) {
+	if (buf_size < arg_size)
+	{
 		dprintf(CRITICAL, "display command line buffer is small\n");
 		ret = false;
-	} else {
+	}
+	else
+	{
 		strlcpy(pbuf, DISPLAY_CMDLINE_PREFIX, buf_size);
 		pbuf += prefix_string_len;
 		buf_size -= prefix_string_len;
@@ -273,13 +248,18 @@ bool gcdb_display_cmdline_arg(char *panel_name, char *pbuf, uint16_t buf_size)
 
 		strlcpy(pbuf, panel_node, buf_size);
 
+		/* Return string for single dsi */
+		if (!panel_mode)
+			goto end;
+
 		pbuf += panel_node_len;
 		buf_size -= panel_node_len;
 
 		strlcpy(pbuf, DSI_1_STRING, buf_size);
 		pbuf += DSI_1_STRING_LEN;
 		buf_size -= DSI_1_STRING_LEN;
-		strlcpy(pbuf, slave_panel_node, buf_size);
+		if (slave_panel_node)
+			strlcpy(pbuf, slave_panel_node, buf_size);
 	}
 end:
 	return ret;
@@ -298,117 +278,36 @@ static void init_platform_data()
 	memcpy(dsi_video_mode_phy_db.laneCfg, panel_lane_config, LANE_SIZE);
 }
 
-static void mdss_edp_panel_init(struct msm_panel_info *pinfo)
-{
-	return target_edp_panel_init(pinfo);
-}
-
-static uint32_t mdss_edp_panel_clock(uint8_t enable,
-				struct msm_panel_info *pinfo)
-{
-	return target_edp_panel_clock(enable, pinfo);
-}
-
-static uint32_t mdss_edp_panel_enable(void)
-{
-	return target_edp_panel_enable();
-}
-
-static uint32_t mdss_edp_panel_disable(void)
-{
-	return target_edp_panel_disable();
-}
-
-static int mdss_edp_panel_power(uint8_t enable,
-				struct msm_panel_info *pinfo)
-{
-	int ret = NO_ERROR;
-
-	if (enable) {
-		ret = target_ldo_ctrl(enable, pinfo);
-		if (ret) {
-			dprintf(CRITICAL, "LDO control enable failed\n");
-			return ret;
-		}
-
-		ret = mdss_edp_panel_enable();
-		if (ret) {
-			dprintf(CRITICAL, "%s: panel enable failed\n", __func__);
-			return ret;
-		}
-		dprintf(SPEW, "EDP Panel power on done\n");
-	} else {
-		/* Disable panel and ldo */
-		ret = mdss_edp_panel_disable();
-		if (ret) {
-			dprintf(CRITICAL, "%s: panel disable failed\n", __func__);
-			return ret;
-		}
-
-		ret = target_ldo_ctrl(enable, pinfo);
-		if (ret) {
-			dprintf(CRITICAL, "%s: ldo control disable failed\n", __func__);
-			return ret;
-		}
-		dprintf(SPEW, "EDP Panel power off done\n");
-	}
-
-	return ret;
-}
-
-static int mdss_edp_bl_enable(uint8_t enable)
-{
-	int ret = NO_ERROR;
-
-	ret = target_edp_bl_ctrl(enable);
-	if (ret)
-		dprintf(CRITICAL, "Backlight %s failed\n", enable ? "enable" :
-							"disable");
-	return ret;
-}
-
 int gcdb_display_init(const char *panel_name, uint32_t rev, void *base)
 {
 	int ret = NO_ERROR;
-	int pan_type;
 
-	pan_type = oem_panel_select(panel_name, &panelstruct, &(panel.panel_info),
-				 &dsi_video_mode_phy_db);
-
-	if (pan_type == PANEL_TYPE_DSI) {
-		init_platform_data();
-		if (dsi_panel_init(&(panel.panel_info), &panelstruct)) {
-			dprintf(CRITICAL, "DSI panel init failed!\n");
-			ret = ERROR;
-			goto error_gcdb_display_init;
-		}
-
-		panel.panel_info.mipi.mdss_dsi_phy_db = &dsi_video_mode_phy_db;
-		panel.pll_clk_func = mdss_dsi_panel_clock;
-		panel.power_func = mdss_dsi_panel_power;
-		panel.pre_init_func = mdss_dsi_panel_pre_init;
-		panel.bl_func = mdss_dsi_bl_enable;
-		panel.fb.base = base;
-		panel.fb.width =  panel.panel_info.xres;
-		panel.fb.height =  panel.panel_info.yres;
-		panel.fb.stride =  panel.panel_info.xres;
-		panel.fb.bpp =  panel.panel_info.bpp;
-		panel.fb.format = panel.panel_info.mipi.dst_format;
-	} else if (pan_type == PANEL_TYPE_EDP) {
-		mdss_edp_panel_init(&(panel.panel_info));
-		/* prepare func is set up at edp_panel_init */
-                panel.clk_func = mdss_edp_panel_clock;
-                panel.power_func = mdss_edp_panel_power;
-		panel.bl_func = mdss_edp_bl_enable;
-                panel.fb.format = FB_FORMAT_RGB888;
-	} else {
+	if (!oem_panel_select(panel_name, &panelstruct, &(panel.panel_info),
+				 &dsi_video_mode_phy_db)) {
 		dprintf(CRITICAL, "Target panel init not found!\n");
 		ret = ERR_NOT_SUPPORTED;
 		goto error_gcdb_display_init;
+	}
+	init_platform_data();
 
+	if (dsi_panel_init(&(panel.panel_info), &panelstruct)) {
+		dprintf(CRITICAL, "DSI panel init failed!\n");
+		ret = ERROR;
+		goto error_gcdb_display_init;
 	}
 
+	panel.panel_info.mipi.mdss_dsi_phy_db = &dsi_video_mode_phy_db;
+
+	panel.pll_clk_func = mdss_dsi_panel_clock;
+	panel.power_func = mdss_dsi_panel_power;
+	panel.pre_init_func = mdss_dsi_panel_pre_init;
+	panel.bl_func = mdss_dsi_bl_enable;
 	panel.fb.base = base;
+	panel.fb.width =  panel.panel_info.xres;
+	panel.fb.height =  panel.panel_info.yres;
+	panel.fb.stride =  panel.panel_info.xres;
+	panel.fb.bpp =  panel.panel_info.bpp;
+	panel.fb.format = panel.panel_info.mipi.dst_format;
 	panel.mdp_rev = rev;
 
 	ret = msm_display_init(&panel);

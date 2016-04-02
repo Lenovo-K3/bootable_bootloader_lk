@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -95,8 +95,6 @@ struct ufs_dev
 	uint32_t                     serial_num;
 	uint32_t                     block_size;
 	uint32_t                     erase_blk_size;
-        uint32_t                     rpmb_rw_size;
-        uint32_t                     rpmb_num_blocks;
 	uint64_t                     capacity;
 	struct ufs_unit_desc         lun_cfg[8];
 
@@ -122,8 +120,5 @@ uint64_t ufs_get_dev_capacity(struct ufs_dev* dev);
 uint32_t ufs_get_serial_num(struct ufs_dev* dev);
 uint8_t ufs_get_num_of_luns(struct ufs_dev* dev);
 uint32_t ufs_get_erase_blk_size(struct ufs_dev* dev);
-void ufs_dump_is_register(struct ufs_dev* dev);
 void ufs_dump_hc_registers(struct ufs_dev* dev);
-void ufs_rpmb_init(struct ufs_dev *dev);
-
 #endif

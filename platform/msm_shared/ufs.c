@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -34,10 +34,8 @@
 #include <uic.h>
 #include <ucs.h>
 #include <dme.h>
-#include <qgic.h>
 #include <string.h>
 #include <platform/iomap.h>
-#include <platform/irqs.h>
 #include <kernel/mutex.h>
 
 static int ufs_dev_init(struct ufs_dev *dev)
@@ -83,46 +81,9 @@ static void ufs_setup_req_lists(struct ufs_dev *dev)
 	writel(1, UFS_UTRLRSR(dev->base));
 
 	/* Enable the required irqs. */
-	val = UFS_IE_UEE | UFS_IE_UCCE ;
+	val = UFS_IE_UTRCE | UFS_IE_UEE | UFS_IE_UTMRCE | UFS_IE_UCCE ;
 	ufs_irq_enable(dev, val);
-	// Change UFS_IRQ to level based
-	qgic_change_interrupt_cfg(UFS_IRQ, INTERRUPT_LVL_N_TO_N);
 }
-
-
-void ufs_rpmb_init(struct ufs_dev *dev)
-{
-        int ret = 0;
-
-        /*
-         * Perform request sense on lun to clear
-         * attention pending, other wise all the read/write
-         * operations would fail with check condition error
-         */
-        ucs_do_request_sense(dev, UFS_WLUN_RPMB);
-
-        // calculate the size of rpmb partition in sectors
-        ret = dme_read_unit_desc(dev, UFS_WLUN_RPMB);
-        if (ret != UFS_SUCCESS)
-        {
-                dprintf(CRITICAL, "UFS dme_read_unit_desc failed for RPMB Partition\n");
-                return;
-        }
-
-        // gets the number of rpmb frames allowed in a single UPIU commands
-        ret = dme_read_geo_desc(dev);
-        if (ret != UFS_SUCCESS)
-        {
-                dprintf(CRITICAL, "UFS dme_read_geo_desc failed for RPMB Partition\n");
-                return;
-        }
-#ifdef DEBUG_UFS
-        dprintf(INFO, "RPMB: Logical Block Count: 0x%x\n", dev->rpmb_num_blocks);
-        dprintf(INFO, "RPMB: RPMB Read Write Size: 0x%x\n", dev->rpmb_rw_size);
-#endif
-}
-
-
 
 int ufs_read(struct ufs_dev* dev, uint64_t start_lba, addr_t buffer, uint32_t num_blocks)
 {
@@ -303,12 +264,6 @@ ufs_init_err:
 	}
 
 	return ret;
-}
-
-void ufs_dump_is_register(struct ufs_dev *dev)
-{
-	uint32_t base = dev->base;
-	dprintf(CRITICAL,"UFS_IS 0x%x\n",readl(UFS_IS(base)));
 }
 
 void ufs_dump_hc_registers(struct ufs_dev *dev)

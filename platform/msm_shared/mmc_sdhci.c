@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -232,23 +232,6 @@ static uint32_t mmc_decode_and_save_csd(struct mmc_card *card)
 	memcpy((struct mmc_csd *)&card->csd,(struct mmc_csd *)&mmc_csd,
 			sizeof(struct mmc_csd));
 
-	if (MMC_CARD_MMC(card)) {
-
-		/* Calculate the wp grp size */
-		if (card->ext_csd[MMC_ERASE_GRP_DEF])
-			card->wp_grp_size = MMC_HC_ERASE_MULT * card->ext_csd[MMC_HC_ERASE_GRP_SIZE] / MMC_BLK_SZ;
-		else
-			card->wp_grp_size = (card->csd.wp_grp_size + 1) * (card->csd.erase_grp_size + 1) \
-						  * (card->csd.erase_grp_mult + 1);
-
-		card->rpmb_size = RPMB_PART_MIN_SIZE * card->ext_csd[RPMB_SIZE_MULT];
-		card->rel_wr_count = card->ext_csd[REL_WR_SEC_C];
-	}
-	else {
-		card->wp_grp_size = (card->csd.wp_grp_size + 1) * (card->csd.erase_grp_size + 1) \
-						* (card->csd.erase_grp_mult + 1);
-	}
-
 	dprintf(SPEW, "Decoded CSD fields:\n");
 	dprintf(SPEW, "cmmc_structure: %u\n", mmc_csd.cmmc_structure);
 	dprintf(SPEW, "card_cmd_class: %x\n", mmc_csd.card_cmd_class);
@@ -266,7 +249,6 @@ static uint32_t mmc_decode_and_save_csd(struct mmc_card *card)
 	dprintf(SPEW, "write_blk_misalign: %u\n", mmc_csd.write_blk_misalign);
 	dprintf(SPEW, "read_blk_partial: %u\n", mmc_csd.read_blk_partial);
 	dprintf(SPEW, "write_blk_partial: %u\n", mmc_csd.write_blk_partial);
-	dprintf(SPEW, "wp_grp_size: %u\n", card->wp_grp_size);
 	dprintf(SPEW, "Card Capacity: %llu Bytes\n", card->capacity);
 
 	return 0;
@@ -749,7 +731,7 @@ static uint32_t mmc_switch_cmd(struct sdhci_host *host, struct mmc_card *card,
 	}
 
 	if (MMC_CARD_STATUS(mmc_status) != MMC_TRAN_STATE) {
-		dprintf(CRITICAL, "Switch cmd failed. Card not in tran state %x\n", mmc_status);
+		dprintf(CRITICAL, "Switch cmd failed. Card not in tran state\n");
 		mmc_ret = 1;
 	}
 
@@ -761,19 +743,6 @@ static uint32_t mmc_switch_cmd(struct sdhci_host *host, struct mmc_card *card,
 	return mmc_ret;
 }
 
-bool mmc_set_drv_type(struct sdhci_host *host, struct mmc_card *card, uint8_t drv_type)
-{
-	uint32_t ret = 0;
-	bool drv_type_changed = false;
-
-	uint32_t value = ((drv_type << 4) | MMC_HS200_TIMING);
-
-	if (card->ext_csd[MMC_EXT_MMC_DRV_STRENGTH] & (1 << drv_type))
-		ret = mmc_switch_cmd(host, card, MMC_ACCESS_WRITE, MMC_EXT_MMC_HS_TIMING, value);
-	if (!ret)
-		drv_type_changed = true;
-	return drv_type_changed;
-}
 /*
  * Function: mmc set bus width
  * Arg     : Host, card structure & width
@@ -853,8 +822,6 @@ static uint32_t mmc_set_hs200_mode(struct sdhci_host *host,
 {
 	uint32_t mmc_ret = 0;
 
-	DBG("\n Enabling HS200 Mode Start\n");
-
 	/* Set 4/8 bit SDR bus width */
 	mmc_ret = mmc_set_bus_width(host, card, width);
 	if (mmc_ret) {
@@ -887,29 +854,15 @@ static uint32_t mmc_set_hs200_mode(struct sdhci_host *host,
 		sdhci_msm_set_mci_clk(host);
 		clock_config_mmc(host->msm_host->slot, SDHCI_CLK_400MHZ);
 	}
-
-	/* Execute Tuning for hs200 mode */
-	if ((mmc_ret = sdhci_msm_execute_tuning(host, card, width)))
-		dprintf(CRITICAL, "Tuning for hs200 failed\n");
-
-	/* Once the tuning is executed revert back the clock to 200MHZ
-	 * and disable the MCI_CLK divider so that we can use SDHC clock
-	 * divider to supply clock to the card
-	 */
-	if (host->timing == MMC_HS400_TIMING)
-	{
-		MMC_SAVE_TIMING(host, MMC_HS200_TIMING);
-		sdhci_msm_set_mci_clk(host);
-		clock_config_mmc(host->msm_host->slot, MMC_CLK_192MHZ);
-	}
 	else
 	{
 		/* Save the timing value, before changing the clock */
 		MMC_SAVE_TIMING(host, MMC_HS200_TIMING);
 	}
 
-
-	DBG("\n Enabling HS200 Mode Done\n");
+	/* Execute Tuning for hs200 mode */
+	if ((mmc_ret = sdhci_msm_execute_tuning(host, width)))
+		dprintf(CRITICAL, "Tuning for hs200 failed\n");
 
 	return mmc_ret;
 }
@@ -923,8 +876,6 @@ static uint32_t mmc_set_hs200_mode(struct sdhci_host *host,
 static uint8_t mmc_set_ddr_mode(struct sdhci_host *host, struct mmc_card *card)
 {
 	uint8_t mmc_ret = 0;
-
-	DBG("\n Enabling DDR Mode Start\n");
 
 	/* Set width for 8 bit DDR mode by default */
 	mmc_ret = mmc_set_bus_width(host, card, DATA_DDR_BUS_WIDTH_8BIT);
@@ -940,8 +891,6 @@ static uint8_t mmc_set_ddr_mode(struct sdhci_host *host, struct mmc_card *card)
 
 	/* Set the DDR mode in controller */
 	sdhci_set_uhs_mode(host, SDHCI_DDR50_MODE);
-
-	DBG("\n Enabling DDR Mode Done\n");
 
 	return 0;
 }
@@ -998,7 +947,6 @@ uint32_t mmc_set_hs400_mode(struct sdhci_host *host,
 	 * 4. Enable HS400 mode & execute tuning
 	 */
 
-	DBG("\n Enabling HS400 Mode Start\n");
 	/* HS400 mode is supported only in DDR 8-bit */
 	if (width != DATA_BUS_WIDTH_8BIT)
 	{
@@ -1055,14 +1003,10 @@ uint32_t mmc_set_hs400_mode(struct sdhci_host *host,
 	* Enable HS400 mode
 	*/
 	sdhci_msm_set_mci_clk(host);
-	/* Set the clock back to 400 MHZ */
-	clock_config_mmc(host->msm_host->slot, SDHCI_CLK_400MHZ);
 
 	/* 7. Execute Tuning for hs400 mode */
-	if ((mmc_ret = sdhci_msm_execute_tuning(host, card, width)))
+	if ((mmc_ret = sdhci_msm_execute_tuning(host, width)))
 		dprintf(CRITICAL, "Tuning for hs400 failed\n");
-
-	DBG("\n Enabling HS400 Mode Done\n");
 
 	return mmc_ret;
 }
@@ -1100,7 +1044,6 @@ static uint8_t mmc_host_init(struct mmc_device *dev)
 	data->pwrctl_base = cfg->pwrctl_base;
 	data->pwr_irq = cfg->pwr_irq;
 	data->slot = cfg->slot;
-	data->use_io_switch = cfg->use_io_switch;
 
 	host->msm_host = data;
 
@@ -1108,12 +1051,6 @@ static uint8_t mmc_host_init(struct mmc_device *dev)
 	clock_init_mmc(cfg->slot);
 
 	clock_config_mmc(cfg->slot, cfg->max_clk_rate);
-
-	/* Configure the CDC clocks needed for emmc storage
-	 * we use slot '1' for emmc
-	 */
-	if (cfg->slot == 1)
-		clock_config_cdc(cfg->slot);
 
 	/*
 	 * MSM specific sdhc init
@@ -1345,7 +1282,7 @@ static uint32_t mmc_sd_get_card_ssr(struct sdhci_host *host, struct mmc_card *ca
 	cmd.cmd_index = ACMD13_SEND_SD_STATUS;
 	cmd.argument = 0x0;
 	cmd.cmd_type = SDHCI_CMD_TYPE_NORMAL;
-	cmd.resp_type = SDHCI_CMD_RESP_R1;
+	cmd.resp_type = SDHCI_CMD_RESP_R2;
 	cmd.trans_mode = SDHCI_MMC_READ;
 	cmd.data_present = 0x1;
 	cmd.data.data_ptr = raw_sd_status;
@@ -1365,9 +1302,7 @@ static uint32_t mmc_sd_get_card_ssr(struct sdhci_host *host, struct mmc_card *ca
 	/* Card AU size in sectors */
 	card->ssr.au_size = 1 << (au_size + 4);
 	card->ssr.num_aus = UNPACK_BITS(status, MMC_SD_ERASE_SIZE_BIT, MMC_SD_ERASE_SIZE_LEN, 32);
-	/*if num_aus is 0 then host should assign number of AU erased at a time*/
-	if (!card->ssr.num_aus)
-		card->ssr.num_aus = 0x10;
+
 	return 0;
 }
 
@@ -1603,7 +1538,6 @@ static uint32_t mmc_card_init(struct mmc_device *dev)
 		 */
 		if (host->caps.hs400_support && mmc_card_supports_hs400_mode(card))
 		{
-			dprintf(INFO, "SDHC Running in HS400 mode\n");
 			mmc_return = mmc_set_hs400_mode(host, card, bus_width);
 			if (mmc_return)
 			{
@@ -1614,7 +1548,6 @@ static uint32_t mmc_card_init(struct mmc_device *dev)
 		}
 		else if (host->caps.sdr104_support && mmc_card_supports_hs200_mode(card))
 		{
-			dprintf(INFO, "SDHC Running in HS200 mode\n");
 			mmc_return = mmc_set_hs200_mode(host, card, bus_width);
 
 			if (mmc_return) {
@@ -1623,7 +1556,6 @@ static uint32_t mmc_card_init(struct mmc_device *dev)
 				return mmc_return;
 			}
 		} else if (host->caps.ddr_support && mmc_card_supports_ddr_mode(card)) {
-			dprintf(INFO, "SDHC Running in DDR mode\n");
 			mmc_return = mmc_set_ddr_mode(host, card);
 
 			if (mmc_return) {
@@ -1632,15 +1564,7 @@ static uint32_t mmc_card_init(struct mmc_device *dev)
 				return mmc_return;
 			}
 		} else {
-			dprintf(INFO, "SDHC Running in High Speed mode\n");
-			/* Set HS_TIMING mode */
-			mmc_return = mmc_set_hs_interface(host, card);
-			if (mmc_return) {
-				dprintf(CRITICAL, "Failure to enalbe HS mode for Card(RCA:%x)\n",
-								  card->rca);
-				return mmc_return;
-			}
-			/* Set wide bus mode */
+			/* Set 4/8 bit bus width for the card */
 			mmc_return = mmc_set_bus_width(host, card, bus_width);
 			if (mmc_return) {
 				dprintf(CRITICAL, "Failure to set wide bus for Card(RCA:%x)\n",
@@ -1674,22 +1598,16 @@ static uint32_t mmc_card_init(struct mmc_device *dev)
 	}
 
 
+	/* Verify TRAN state after changing speed and bus width */
+	mmc_return = mmc_get_card_status(host, card, &status);
+	if (mmc_return)
+		return mmc_return;
+
+	if (MMC_CARD_STATUS(status) != MMC_TRAN_STATE)
+		mmc_return = 1;
+
 	card->block_size = MMC_BLK_SZ;
 
-	if (MMC_CARD_MMC(card)) {
-		/* Enable RST_n_FUNCTION */
-		if (!card->ext_csd[MMC_EXT_CSD_RST_N_FUNC])
-		{
-			mmc_return = mmc_switch_cmd(host, card, MMC_SET_BIT, MMC_EXT_CSD_RST_N_FUNC, RST_N_FUNC_ENABLE);
-
-			if (mmc_return)
-			{
-				dprintf(CRITICAL, "Failed to enable RST_n_FUNCTION\n");
-				return mmc_return;
-			}
-		}
-
-	}
 	return mmc_return;
 }
 
@@ -1807,31 +1725,6 @@ static uint32_t mmc_parse_response(uint32_t resp)
 	return 0;
 }
 
-static uint32_t mmc_stop_command(struct mmc_device *dev)
-{
-	struct mmc_command cmd;
-	uint32_t mmc_ret = 0;
-
-	memset((struct mmc_command *)&cmd, 0, sizeof(struct mmc_command));
-
-	cmd.cmd_index = CMD12_STOP_TRANSMISSION;
-	cmd.argument = (dev->card.rca << 16);
-	cmd.cmd_type = SDHCI_CMD_TYPE_NORMAL;
-	cmd.resp_type = SDHCI_CMD_RESP_R1;
-
-	mmc_ret = sdhci_send_command(&dev->host, &cmd);
-	if(mmc_ret)
-	{
-		dprintf(CRITICAL, "Failed to send stop command\n");
-		return mmc_ret;
-	}
-
-	/* Response contains 32 bit Card status.
-	 * Parse the errors & provide relevant information */
-
-	return mmc_parse_response(cmd.resp[0]);
-}
-
 /*
  * Function: mmc sdhci read
  * Arg     : mmc device structure, block address, number of blocks & destination
@@ -1887,18 +1780,19 @@ uint32_t mmc_sdhci_read(struct mmc_device *dev, void *dest,
 
 	/* send command */
 	mmc_ret = sdhci_send_command(&dev->host, &cmd);
-
-	/* For multi block read failures send stop command */
-	if (mmc_ret && num_blocks > 1)
-	{
-		return mmc_stop_command(dev);
+	if (mmc_ret) {
+		return mmc_ret;
 	}
 
-	/*
-	 * Response contains 32 bit Card status.
-	 * Parse the errors & provide relevant information
-	 */
-	return mmc_parse_response(cmd.resp[0]);
+	/* Response contains 32 bit Card status.
+	 * Parse the errors & provide relevant information */
+	if ((mmc_ret = mmc_parse_response(cmd.resp[0])))
+	{
+		dprintf(CRITICAL,"MMC Read failed, found errors in card response: %s\t%d\n", __func__, __LINE__);
+		return mmc_ret;
+	}
+
+	return mmc_ret;
 }
 
 /*
@@ -1956,18 +1850,18 @@ uint32_t mmc_sdhci_write(struct mmc_device *dev, void *src,
 
 	/* send command */
 	mmc_ret = sdhci_send_command(&dev->host, &cmd);
+	if (mmc_ret)
+		return mmc_ret;
 
-	/* For multi block write failures send stop command */
-	if (mmc_ret && num_blocks > 1)
+	/* Response contains 32 bit Card status.
+	 * Parse the errors & provide relevant information */
+	if ((mmc_ret = mmc_parse_response(cmd.resp[0])))
 	{
-		return mmc_stop_command(dev);
+		dprintf(CRITICAL,"MMC Write failed, found errors in card response: %s\t%d\n", __func__, __LINE__);
+		return mmc_ret;
 	}
 
-	/*
-	 * Response contains 32 bit Card status.
-	 * Parse the errors & provide relevant information
-	 */
-	return mmc_parse_response(cmd.resp[0]);
+	return mmc_ret;
 }
 
 /*
@@ -2184,12 +2078,9 @@ uint32_t mmc_sdhci_erase(struct mmc_device *dev, uint32_t blk_addr, uint64_t len
 
 	/*
 	 * As per emmc 4.5 spec section 7.4.27, calculate the erase timeout
-	 * erase_timeout = 300ms * ERASE_TIMEOUT_MULT * num_erase_grps
+	 * erase_timeout = 300 * ERASE_TIMEOUT_MULT * num_erase_grps
 	 */
-	if (MMC_CARD_MMC(card))
-		erase_timeout = ((uint64_t)300 * 1000 * card->ext_csd[MMC_ERASE_TIMEOUT_MULT] * num_erase_grps);
-	else
-		erase_timeout = ((uint64_t)300 * 1000 * num_erase_grps);
+	erase_timeout = (300 * card->ext_csd[MMC_ERASE_TIMEOUT_MULT] * num_erase_grps);
 
 	/* Send CMD38 to perform erase */
 	if (mmc_send_erase(dev, erase_timeout))
@@ -2242,7 +2133,6 @@ uint32_t mmc_get_wp_status(struct mmc_device *dev, uint32_t addr, uint8_t *wp_st
 uint32_t mmc_set_clr_power_on_wp_user(struct mmc_device *dev, uint32_t addr, uint64_t len, uint8_t set_clr)
 {
 	struct mmc_command cmd;
-	struct mmc_card *card = &dev->card;
 	uint32_t wp_grp_size;
 	uint32_t status;
 	uint32_t num_wp_grps;
@@ -2254,7 +2144,6 @@ uint32_t mmc_set_clr_power_on_wp_user(struct mmc_device *dev, uint32_t addr, uin
 
 	/* Convert len into blocks */
 	len = len / MMC_BLK_SZ;
-	wp_grp_size = dev->card.wp_grp_size;
 
 	/* Disable PERM WP */
 	ret = mmc_switch_cmd(&dev->host, &dev->card, MMC_SET_BIT, MMC_USR_WP, MMC_US_PERM_WP_DIS);
@@ -2281,6 +2170,14 @@ uint32_t mmc_set_clr_power_on_wp_user(struct mmc_device *dev, uint32_t addr, uin
 		dprintf(CRITICAL, "Power on protection is disabled, cannot be set\n");
 		return 1;
 	}
+
+	/* Calculate the wp grp size */
+	if (dev->card.ext_csd[MMC_ERASE_GRP_DEF])
+		wp_grp_size = MMC_HC_ERASE_MULT * dev->card.ext_csd[MMC_HC_ERASE_GRP_SIZE] / MMC_BLK_SZ;
+	else
+		wp_grp_size = (dev->card.csd.wp_grp_size + 1) * (dev->card.csd.erase_grp_size + 1) \
+					  * (dev->card.csd.erase_grp_mult + 1);
+
 
 	if (len < wp_grp_size)
 	{
@@ -2309,15 +2206,7 @@ uint32_t mmc_set_clr_power_on_wp_user(struct mmc_device *dev, uint32_t addr, uin
 
 	for(i = 0; i < num_wp_grps; i++)
 	{
-		/*
-		* Standard emmc cards use byte mode addressing
-		* convert the block address to byte address before
-		* sending the command
-		*/
-		if (card->type == MMC_TYPE_STD_MMC)
-			cmd.argument = (addr + (i * wp_grp_size)) * card->block_size;
-		else
-			cmd.argument = addr + (i * wp_grp_size);
+		cmd.argument = addr + (i * wp_grp_size);
 
 		if (sdhci_send_command(&dev->host, &cmd))
 			return 1;
@@ -2370,119 +2259,13 @@ void mmc_put_card_to_sleep(struct mmc_device *dev)
 		dprintf(CRITICAL, "card deselect error: %s\n", __func__);
 		return;
 	}
-	if(MMC_CARD_MMC(card)){
-		/*CMD5 is reserved in SD card */
-		cmd.cmd_index = CMD5_SLEEP_AWAKE;
-		cmd.argument = (card->rca << MMC_CARD_RCA_BIT) | MMC_CARD_SLEEP;
-		cmd.cmd_type = SDHCI_CMD_TYPE_NORMAL;
-		cmd.resp_type = SDHCI_CMD_RESP_R1B;
 
-		/* send command */
-		if(sdhci_send_command(&dev->host, &cmd))
-			dprintf(CRITICAL, "card sleep error: %s\n", __func__);
-	}
-}
-
-/*
- * Switch the partition access type to rpmb or default
- */
-static uint32_t mmc_sdhci_switch_part(struct mmc_device *dev, uint32_t type)
-{
-	uint32_t part_access;
-	uint32_t ret;
-
-	/* Clear the partition access */
-	part_access = dev->card.ext_csd[MMC_PARTITION_CONFIG] & ~PARTITION_ACCESS_MASK;
-	part_access |= type;
-
-	ret = mmc_switch_cmd(&dev->host, &dev->card, MMC_ACCESS_WRITE, MMC_PARTITION_CONFIG, part_access);
-
-	if (ret)
-	{
-		dprintf(CRITICAL, "Failed to switch partition to type: %u\n", type);
-		return 1;
-	}
-
-	dev->card.ext_csd[MMC_PARTITION_CONFIG] = part_access;
-	return 0;
-}
-
-static uint32_t mmc_sdhci_set_blk_cnt(struct mmc_device *dev, uint32_t blk_cnt, uint32_t rel_write)
-{
-	struct mmc_command cmd = {0};
-
-	cmd.cmd_index = CMD23_SET_BLOCK_COUNT;
-	cmd.argument = blk_cnt & 0x0000ffff;
-	cmd.argument |= rel_write;
+	cmd.cmd_index = CMD5_SLEEP_AWAKE;
+	cmd.argument = (card->rca << MMC_CARD_RCA_BIT) | MMC_CARD_SLEEP;
 	cmd.cmd_type = SDHCI_CMD_TYPE_NORMAL;
-	cmd.resp_type = SDHCI_CMD_RESP_R1;
+	cmd.resp_type = SDHCI_CMD_RESP_R1B;
 
-	if (sdhci_send_command(&dev->host, &cmd))
-	{
-		dprintf(CRITICAL, "Set block count failed: %s\n", __func__);
-		return 1;
-	}
-
-	return 0;
-}
-
-uint32_t mmc_sdhci_rpmb_send(struct mmc_device *dev, struct mmc_command *cmd)
-{
-	int i;
-	uint32_t retry = 5;
-	uint32_t status;
-	uint32_t rel_write = 0;
-	uint32_t ret = 1;
-
-	ASSERT(cmd);
-
-	/* 1. Set the partition type to rpmb */
-	if (mmc_sdhci_switch_part(dev, PART_ACCESS_RPMB))
-		return 1;
-
-	for (i = 0; i < MAX_RPMB_CMDS; i++)
-	{
-		if (!cmd[i].cmd_index)
-			break;
-
-		if (cmd[i].write_flag == true)
-			rel_write = BIT(31);
-		else
-			rel_write = 0;
-
-		/* 2. Set the block count using cmd23 */
-		if (mmc_sdhci_set_blk_cnt(dev, cmd[i].data.num_blocks, rel_write))
-			goto err;
-
-		/* 3. Send the command */
-		if (sdhci_send_command(&dev->host, &cmd[i]))
-			goto err;
-		do
-		{
-			/* 4. Poll for card status to ensure rpmb operation completeness */
-			if (mmc_get_card_status(&dev->host, &dev->card, &status))
-			{
-				dprintf(CRITICAL, "Failed to get card status after rpmb operations\n");
-				goto err;
-			}
-
-			retry--;
-			udelay(500);
-			if (!retry)
-			{
-				dprintf(CRITICAL, "Card status check timed out after rpmb operations\n");
-				goto err;
-			}
-		} while(!(status & MMC_READY_FOR_DATA) || (MMC_CARD_STATUS(status) == MMC_PROG_STATE));
-	}
-
-	/* If we reach here, that means success */
-	ret = 0;
-
-err:
-	/* 5. Switch the partition back to default type */
-	if (mmc_sdhci_switch_part(dev, PART_ACCESS_DEFAULT))
-		ret = 1;
-
-	return ret;
+	/* send command */
+	if(sdhci_send_command(&dev->host, &cmd))
+		dprintf(CRITICAL, "card sleep error: %s\n", __func__);
 }

@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -34,7 +34,6 @@
 #include <ufs.h>
 #include <target.h>
 #include <string.h>
-#include <partition_parser.h>
 
 /*
  * Weak function for UFS.
@@ -123,13 +122,7 @@ uint32_t mmc_write(uint64_t data_addr, uint32_t data_len, void *in)
 	if (data_len % block_size)
 		data_len = ROUNDUP(data_len, block_size);
 
-	/*
-	 * Flush the cache before handing over the data to
-	 * storage driver
-	 */
-	arch_clean_invalidate_cache_range((addr_t)in, data_len);
-
-	if (platform_boot_dev_isemmc())
+	if (target_boot_device_emmc())
 	{
 		/* TODO: This function is aware of max data that can be
 		 * tranferred using sdhci adma mode, need to have a cleaner
@@ -156,6 +149,8 @@ uint32_t mmc_write(uint64_t data_addr, uint32_t data_len, void *in)
 	}
 	else
 	{
+		arch_clean_invalidate_cache_range((addr_t)in, data_len);
+
 		ret = ufs_write((struct ufs_dev *)dev, data_addr, (addr_t)in, (data_len / block_size));
 
 		if (ret)
@@ -188,15 +183,8 @@ uint32_t mmc_read(uint64_t data_addr, uint32_t *out, uint32_t data_len)
 	ASSERT(!(data_addr % block_size));
 	ASSERT(!(data_len % block_size));
 
-	/*
-	 * dma onto write back memory is unsafe/nonportable,
-	 * but callers to this routine normally provide
-	 * write back buffers. Invalidate cache
-	 * before read data from mmc.
-         */
-	arch_clean_invalidate_cache_range((addr_t)(out), data_len);
 
-	if (platform_boot_dev_isemmc())
+	if (target_boot_device_emmc())
 	{
 		/* TODO: This function is aware of max data that can be
 		 * tranferred using sdhci adma mode, need to have a cleaner
@@ -247,7 +235,7 @@ uint32_t mmc_get_eraseunit_size()
 {
 	uint32_t erase_unit_sz = 0;
 
-	if (platform_boot_dev_isemmc()) {
+	if (target_boot_device_emmc()) {
 		struct mmc_device *dev;
 		struct mmc_card *card;
 
@@ -290,7 +278,6 @@ static uint32_t mmc_zero_out(struct mmc_device* dev, uint32_t blk_addr, uint32_t
 	uint32_t block_size = mmc_get_device_blocksize();
 	uint32_t erase_size = (block_size * num_blks);
 	uint32_t scratch_size = target_get_max_flash_size();
-	uint32_t write_size = SDHCI_ADMA_MAX_TRANS_SZ;
 
 	dprintf(INFO, "erasing 0x%x:0x%x\n", blk_addr, num_blks);
 
@@ -305,19 +292,12 @@ static uint32_t mmc_zero_out(struct mmc_device* dev, uint32_t blk_addr, uint32_t
 		return 1;
 	}
 
-	while (erase_size > 0) {
-		if (erase_size <= write_size)
-			write_size = erase_size;
-		memset((void *)out, 0, write_size);
-		/* Flush the data to memory before writing to storage */
-		arch_clean_invalidate_cache_range((addr_t) out , write_size);
-		if (mmc_sdhci_write(dev, out, blk_addr , write_size / block_size))
-		{
-			printf(CRITICAL, "failed to erase the partition: %x\n", blk_addr);
-			return 1;
-		}
-		erase_size -= write_size;
-		blk_addr += (write_size / block_size);
+	memset((void *)out, 0, erase_size);
+
+	if (mmc_sdhci_write(dev, out, blk_addr, num_blks))
+	{
+		dprintf(CRITICAL, "failed to erase the partition: %x\n", blk_addr);
+		return 1;
 	}
 
 	return 0;
@@ -348,7 +328,7 @@ uint32_t mmc_erase_card(uint64_t addr, uint64_t len)
 	ASSERT(!(addr % block_size));
 	ASSERT(!(len % block_size));
 
-	if (platform_boot_dev_isemmc())
+	if (target_boot_device_emmc())
 	{
 		erase_unit_sz = mmc_get_eraseunit_size();
 		dprintf(SPEW, "erase_unit_sz:0x%x\n", erase_unit_sz);
@@ -377,15 +357,6 @@ uint32_t mmc_erase_card(uint64_t addr, uint64_t len)
 
 			blk_addr += unaligned_blks;
 			blk_count -= unaligned_blks;
-
-			head_unit = blk_addr / erase_unit_sz;
-			tail_unit = (blk_addr + blk_count - 1) / erase_unit_sz;
-
-			if (tail_unit - head_unit <= 1)
-			{
-				dprintf(INFO, "SDHCI unit erase not required\n");
-				return mmc_zero_out(dev, blk_addr, blk_count);
-			}
 		}
 
 		unaligned_blks = blk_count % erase_unit_sz;
@@ -428,7 +399,7 @@ uint32_t mmc_erase_card(uint64_t addr, uint64_t len)
  */
 uint32_t mmc_get_psn(void)
 {
-	if (platform_boot_dev_isemmc())
+	if (target_boot_device_emmc())
 	{
 		struct mmc_card *card;
 
@@ -454,7 +425,7 @@ uint32_t mmc_get_psn(void)
  */
 uint64_t mmc_get_device_capacity()
 {
-	if (platform_boot_dev_isemmc())
+	if (target_boot_device_emmc())
 	{
 		struct mmc_card *card;
 
@@ -480,7 +451,7 @@ uint64_t mmc_get_device_capacity()
  */
 uint32_t mmc_get_device_blocksize()
 {
-	if (platform_boot_dev_isemmc())
+	if (target_boot_device_emmc())
 	{
 		struct mmc_card *card;
 
@@ -506,7 +477,7 @@ uint32_t mmc_get_device_blocksize()
  */
 uint32_t mmc_page_size()
 {
-	if (platform_boot_dev_isemmc())
+	if (target_boot_device_emmc())
 	{
 		return BOARD_KERNEL_PAGESIZE;
 	}
@@ -531,7 +502,7 @@ void mmc_device_sleep()
 	void *dev;
 	dev = target_mmc_device();
 
-	if (platform_boot_dev_isemmc())
+	if (target_boot_device_emmc())
 	{
 		mmc_put_card_to_sleep((struct mmc_device *)dev);
 	}
@@ -547,7 +518,7 @@ void mmc_set_lun(uint8_t lun)
 	void *dev;
 	dev = target_mmc_device();
 
-	if (!platform_boot_dev_isemmc())
+	if (!target_boot_device_emmc())
 	{
 		((struct ufs_dev*)dev)->current_lun = lun;
 	}
@@ -565,7 +536,7 @@ uint8_t mmc_get_lun(void)
 
 	dev = target_mmc_device();
 
-	if (!platform_boot_dev_isemmc())
+	if (!target_boot_device_emmc())
 	{
 		lun = ((struct ufs_dev*)dev)->current_lun;
 	}
@@ -581,7 +552,7 @@ void mmc_read_partition_table(uint8_t arg)
 
 	dev = target_mmc_device();
 
-	if(!platform_boot_dev_isemmc())
+	if(!target_boot_device_emmc())
 	{
 		max_luns = ufs_get_num_of_luns((struct ufs_dev*)dev);
 
@@ -596,7 +567,6 @@ void mmc_read_partition_table(uint8_t arg)
 				dprintf(CRITICAL, "Error reading the partition table info for lun %d\n", lun);
 			}
 		}
-		mmc_set_lun(0);
 	}
 	else
 	{
@@ -605,63 +575,4 @@ void mmc_read_partition_table(uint8_t arg)
 			dprintf(CRITICAL, "Error reading the partition table info\n");
 		}
 	}
-}
-
-uint32_t mmc_write_protect(const char *ptn_name, int set_clr)
-{
-	void *dev = NULL;
-	struct mmc_card *card = NULL;
-	uint32_t block_size;
-	unsigned long long  ptn = 0;
-	uint64_t size;
-	int index = -1;
-#ifdef UFS_SUPPORT
-	int ret = 0;
-#endif
-
-	dev = target_mmc_device();
-	block_size = mmc_get_device_blocksize();
-
-	if (platform_boot_dev_isemmc())
-	{
-		card = &((struct mmc_device *)dev)->card;
-
-		index = partition_get_index(ptn_name);
-
-		ptn = partition_get_offset(index);
-		if(!ptn)
-		{
-			return 1;
-		}
-
-		/* Convert the size to blocks */
-		size = partition_get_size(index) / block_size;
-
-		/*
-		 * For read only partitions the minimum size allocated on the disk is
-		 * 1 WP GRP size. If the size of partition is less than 1 WP GRP size
-		 * protect atleast one WP group.
-		 */
-		if (partition_read_only(index) && size < card->wp_grp_size)
-		{
-			/* Write protect api takes the size in bytes, convert size to bytes */
-			size = card->wp_grp_size * block_size;
-		}
-		/* Set the power on WP bit */
-		return mmc_set_clr_power_on_wp_user((struct mmc_device *)dev, (ptn / block_size), size, set_clr);
-	}
-	else
-	{
-#ifdef UFS_SUPPORT
-		/* Enable the power on WP fo all LUNs which have WP bit is enabled */
-		ret = dme_set_fpoweronwpen((struct ufs_dev*) dev);
-		if (ret < 0)
-		{
-			dprintf(CRITICAL, "Failure to WP UFS partition\n");
-			return 1;
-		}
-#endif
-	}
-
-	return 0;
 }

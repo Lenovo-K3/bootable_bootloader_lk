@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -37,24 +37,22 @@
 #include <smem.h>
 #include <board.h>
 #include <boot_stats.h>
-#include <platform.h>
-#include <target/display.h>
+
+#define MB (1024*1024)
 
 #define MSM_IOMAP_SIZE ((MSM_IOMAP_END - MSM_IOMAP_BASE)/MB)
 #define A53_SS_SIZE    ((A53_SS_END - A53_SS_BASE)/MB)
 
 /* LK memory - cacheable, write through */
-#define LK_MEMORY         (MMU_MEMORY_TYPE_NORMAL_WRITE_BACK_ALLOCATE | \
+#define LK_MEMORY         (MMU_MEMORY_TYPE_NORMAL_WRITE_THROUGH | \
 					MMU_MEMORY_AP_READ_WRITE)
 
 /* Peripherals - non-shared device */
 #define IOMAP_MEMORY      (MMU_MEMORY_TYPE_DEVICE_SHARED | \
 			MMU_MEMORY_AP_READ_WRITE | MMU_MEMORY_XN)
 
+/* IMEM memory - cacheable, write through */
 #define COMMON_MEMORY       (MMU_MEMORY_TYPE_NORMAL_WRITE_THROUGH | \
-                           MMU_MEMORY_AP_READ_WRITE | MMU_MEMORY_XN)
-
-#define SCRATCH_MEMORY       (MMU_MEMORY_TYPE_NORMAL_WRITE_BACK_ALLOCATE | \
                            MMU_MEMORY_AP_READ_WRITE | MMU_MEMORY_XN)
 
 static mmu_section_t mmu_section_table[] = {
@@ -64,14 +62,13 @@ static mmu_section_t mmu_section_table[] = {
 	{    A53_SS_BASE,       A53_SS_BASE,      A53_SS_SIZE,      IOMAP_MEMORY},
 	{    SYSTEM_IMEM_BASE,  SYSTEM_IMEM_BASE, 1,                COMMON_MEMORY},
 	{    MSM_SHARED_BASE,   MSM_SHARED_BASE,  1,                COMMON_MEMORY},
-	{    MIPI_FB_ADDR,      MIPI_FB_ADDR,     10,              COMMON_MEMORY},
-	{    SCRATCH_ADDR,      SCRATCH_ADDR,     256,              SCRATCH_MEMORY},
-        {    RPMB_SND_RCV_BUF,      RPMB_SND_RCV_BUF,        RPMB_SND_RCV_BUF_SZ,    IOMAP_MEMORY},
+	{    BASE_ADDR,         BASE_ADDR,        90,               COMMON_MEMORY},
+	{    SCRATCH_ADDR,      SCRATCH_ADDR,     256,              COMMON_MEMORY},
 };
 
+static struct smem_ram_ptable ram_ptable;
 
 int platform_is_msm8939();
-int platform_is_msm8929();
 
 void platform_early_init(void)
 {
@@ -79,17 +76,21 @@ void platform_early_init(void)
 	platform_clock_init();
 	qgic_init();
 	qtimer_init();
-	scm_init();
 }
 
 int qtmr_irq()
 {
+	if (platform_is_msm8939())
+		return INT_QTMR_FRM_0_PHYSICAL_TIMER_EXP_8x39;
+	else
 		return INT_QTMR_FRM_0_PHYSICAL_TIMER_EXP_8x16;
 }
 
 void platform_init(void)
 {
 	dprintf(INFO, "platform_init()\n");
+	/* Configure XPU violation as Error Fatal */
+	scm_xpu_err_fatal_init();
 }
 
 void platform_uninit(void)
@@ -118,14 +119,7 @@ void platform_init_mmu_mappings(void)
 	uint32_t i;
 	uint32_t sections;
 	uint32_t table_size = ARRAY_SIZE(mmu_section_table);
-	uint32_t ddr_start = get_ddr_start();
 
-	/*Mapping the ddr start address for loading the kernel about 90 MB*/
-	sections = 90;
-	while(sections--)
-	{
-		arm_mmu_map_section(ddr_start + sections * MB, ddr_start + sections* MB, COMMON_MEMORY);
-	}
 	/* Configure the MMU page entries for memory read from the
 	   mmu_section_table */
 	for (i = 0; i < table_size; i++)
@@ -169,26 +163,6 @@ int platform_is_msm8939()
 		case MSM8636:
 		case MSM8936:
 		case MSM8239:
-			ret = 1;
-			break;
-		default:
-			ret = 0;
-	};
-
-	return ret;
-}
-
-int platform_is_msm8929()
-{
-	uint32_t platform = board_platform_id();
-	uint32_t ret = 0;
-
-	switch(platform)
-	{
-		case MSM8929:
-		case MSM8629:
-		case MSM8229:
-		case APQ8029:
 			ret = 1;
 			break;
 		default:

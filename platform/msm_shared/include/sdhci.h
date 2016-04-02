@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -33,14 +33,6 @@
 #include <bits.h>
 #include <kernel/event.h>
 
-//#define DEBUG_SDHCI
-
-#ifdef DEBUG_SDHCI
-#define DBG(...) dprintf(ALWAYS, __VA_ARGS__)
-#else
-#define DBG(...)
-#endif
-
 /*
  * Capabilities for the host controller
  * These values are read from the capabilities
@@ -68,9 +60,6 @@ struct sdhci_host {
 	uint32_t cur_clk_rate;   /* Running clock rate */
 	uint32_t timing;         /* current timing for the host */
 	bool tuning_in_progress; /* Tuning is being executed */
-	uint8_t major;           /* host controller minor ver */
-	uint16_t minor;          /* host controller major ver */
-	bool use_cdclp533;       /* Use cdclp533 calibration circuit */
 	event_t* sdhc_event;     /* Event for power control irqs */
 	struct host_caps caps;   /* Host capabilities */
 	struct sdhci_msm_data *msm_host; /* MSM specific host info */
@@ -98,10 +87,8 @@ struct mmc_command {
 	uint32_t trans_mode;    /* Transfer mode, read/write */
 	uint32_t cmd_retry;     /* Retry the command, if card is busy */
 	uint32_t cmd23_support; /* If card supports cmd23 */
-	uint64_t cmd_timeout;   /* Command timeout in us */
-	bool write_flag;        /* Write flag, for reliable write cases */
+	uint64_t cmd_timeout;   /* Command timeout in ms */
 	struct mmc_data data;   /* Data pointer */
-	uint8_t rel_write;      /* Reliable write enable flag */
 };
 
 /*
@@ -137,7 +124,7 @@ enum {
 /*
  * Helper macros for writing byte, word & long registers
  */
-#define REG_READ8(host, a)                        readb(host->base + a)
+#define REG_READ8(host, a)                        readb(host->base + a);
 #define REG_WRITE8(host, v, a)                    writeb(v, (host->base + a))
 
 #define REG_READ32(host, a)                       readl(host->base + a)
@@ -169,11 +156,9 @@ enum {
 #define SDHCI_ERR_INT_STS_EN_REG                  (0x036)
 #define SDHCI_NRML_INT_SIG_EN_REG                 (0x038)
 #define SDHCI_ERR_INT_SIG_EN_REG                  (0x03A)
-#define SDHCI_AUTO_CMD_ERR                        (0x03C)
 #define SDHCI_HOST_CTRL2_REG                      (0x03E)
 #define SDHCI_CAPS_REG1                           (0x040)
 #define SDHCI_CAPS_REG2                           (0x044)
-#define SDHCI_ADM_ERR_REG                         (0x054)
 #define SDHCI_ADM_ADDR_REG                        (0x058)
 
 /*
@@ -290,8 +275,8 @@ enum {
 #define SDHCI_READ_MODE                           BIT(4)
 #define SDHCI_SWITCH_CMD                          6
 #define SDHCI_CMD_TIMEOUT                         0xF
-#define SDHCI_MAX_CMD_RETRY                       9000000
-#define SDHCI_MAX_TRANS_RETRY                     10000000
+#define SDHCI_MAX_CMD_RETRY                       10000
+#define SDHCI_MAX_TRANS_RETRY                     10000
 
 #define SDHCI_PREP_CMD(c, f)                      ((((c) & 0xff) << 8) | ((f) & 0xff))
 

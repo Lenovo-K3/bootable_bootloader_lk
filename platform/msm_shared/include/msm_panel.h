@@ -63,7 +63,6 @@ enum msm_mdp_hw_revision {
 	MDP_REV_30,
 	MDP_REV_303,
 	MDP_REV_304,
-	MDP_REV_305,
 	MDP_REV_31,
 	MDP_REV_40,
 	MDP_REV_41,
@@ -114,47 +113,7 @@ struct lcdc_panel_info {
 	uint8_t dst_split;
 };
 
-struct fbc_panel_info {
-	uint32_t enabled;
-	uint32_t comp_ratio;
-	uint32_t comp_mode;
-	uint32_t qerr_enable;
-	uint32_t cd_bias;
-	uint32_t pat_enable;
-	uint32_t vlc_enable;
-	uint32_t bflc_enable;
-
-	uint32_t line_x_budget;
-	uint32_t block_x_budget;
-	uint32_t block_budget;
-
-	uint32_t lossless_mode_thd;
-	uint32_t lossy_mode_thd;
-	uint32_t lossy_rgb_thd;
-	uint32_t lossy_mode_idx;
-};
-
-/* intf timing settings */
-struct intf_timing_params {
-	uint32_t width;
-	uint32_t height;
-	uint32_t xres;
-	uint32_t yres;
-
-	uint32_t h_back_porch;
-	uint32_t h_front_porch;
-	uint32_t v_back_porch;
-	uint32_t v_front_porch;
-	uint32_t hsync_pulse_width;
-	uint32_t vsync_pulse_width;
-
-	uint32_t border_clr;
-	uint32_t underflow_clr;
-	uint32_t hsync_skew;
-};
-
 struct mipi_panel_info {
-	char cmds_post_tg;	/* send on commands after tg on */
 	char mode;		/* video/cmd */
 	char interleave_mode;
 	int eof_bllp_power;
@@ -240,11 +199,9 @@ struct msm_panel_info {
 	/*  Select pipe type for handoff */
 	uint32_t pipe_type;
 	char     lowpowerstop;
-	char     lcd_reg_en;
 
 	struct lcd_panel_info lcd;
 	struct lcdc_panel_info lcdc;
-	struct fbc_panel_info fbc;
 	struct mipi_panel_info mipi;
 	struct lvds_panel_info lvds;
 	struct hdmi_panel_info hdmi;
@@ -267,7 +224,7 @@ struct msm_fb_panel_data {
 	int rotate;
 
 	/* function entry chain */
-	int (*power_func) (int enable, struct msm_panel_info *);
+	int (*power_func) (int enable);
 	int (*clk_func) (int enable);
 	int (*bl_func) (int enable);
 	int (*pll_clk_func) (int enable, struct msm_panel_info *);

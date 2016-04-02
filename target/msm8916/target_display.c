@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -375,45 +375,6 @@ static int target_panel_reset_skuk(uint8_t enable)
 	return 0;
 }
 
-int target_panel_reset_incell(uint8_t enable)
-{
-	/*Enable the gpios in 75->97->77 order for incell panel*/
-	if (enable) {
-		gpio_tlmm_config(enable_gpio_1.pin_id, 0,
-			enable_gpio_1.pin_direction, enable_gpio_1.pin_pull,
-			enable_gpio_1.pin_strength, enable_gpio_1.pin_state);
-		gpio_set_dir(enable_gpio_1.pin_id, 2);
-
-		gpio_tlmm_config(enp_gpio.pin_id, 0,
-			enp_gpio.pin_direction, enp_gpio.pin_pull,
-			enp_gpio.pin_strength, enp_gpio.pin_state);
-		gpio_set_dir(enp_gpio.pin_id, 2);
-
-		gpio_tlmm_config(enn_gpio_1.pin_id, 0,
-			enn_gpio_1.pin_direction, enn_gpio_1.pin_pull,
-			enn_gpio_1.pin_strength, enn_gpio_1.pin_state);
-		gpio_set_dir(enn_gpio_1.pin_id, 2);
-	}
-	else {
-		gpio_set_dir(enable_gpio_1.pin_id, 0);
-		gpio_set_dir(enp_gpio.pin_id, 0); /* ENP */
-		gpio_set_dir(enn_gpio_1.pin_id, 0); /* ENN */
-	}
-}
-
-int target_panel_reset_jdi_a216(uint8_t enable)
-{
-	if (enable) {
-		 gpio_tlmm_config(ts_reset_gpio.pin_id, 0,
-                        ts_reset_gpio.pin_direction, ts_reset_gpio.pin_pull,
-                        ts_reset_gpio.pin_strength, ts_reset_gpio.pin_state);
-                gpio_set_dir(ts_reset_gpio.pin_id, GPIO_STATE_HIGH);
-	} else {
-		gpio_set_dir(ts_reset_gpio.pin_id, GPIO_STATE_LOW);
-	}
-
-}
-
 int target_panel_reset(uint8_t enable, struct panel_reset_sequence *resetseq,
 						struct msm_panel_info *pinfo)
 {
@@ -423,10 +384,6 @@ int target_panel_reset(uint8_t enable, struct panel_reset_sequence *resetseq,
 
 	if (enable) {
 		if (pinfo->mipi.use_enable_gpio) {
-			/* set enable gpio pin for SKUT1 */
-			if ((hw_id == HW_PLATFORM_QRD) &&
-				 (hw_subtype == HW_PLATFORM_SUBTYPE_SKUT1))
-				enable_gpio = enable_gpio_skut1;
 			gpio_tlmm_config(enable_gpio.pin_id, 0,
 				enable_gpio.pin_direction, enable_gpio.pin_pull,
 				enable_gpio.pin_strength,
@@ -435,18 +392,10 @@ int target_panel_reset(uint8_t enable, struct panel_reset_sequence *resetseq,
 			gpio_set_dir(enable_gpio.pin_id, 2);
 		}
 
-		if (platform_is_msm8939() || platform_is_msm8929()) {
+		if (platform_is_msm8939()) {
 			if ((hw_id == HW_PLATFORM_QRD) &&
 				 (hw_subtype == HW_PLATFORM_SUBTYPE_SKUK))
 				target_panel_reset_skuk(enable);
-			if (((hw_id == HW_PLATFORM_SURF) && 
-				 (hw_subtype == HW_PLATFORM_SUBTYPE_CDP_1)) ||
-				 ((hw_id == HW_PLATFORM_MTP) &&
-				 (hw_subtype == HW_PLATFORM_SUBTYPE_MTP_3)))
-				target_panel_reset_incell(enable);
-			if ((hw_id == HW_PLATFORM_SURF) && 
-				 (hw_subtype == HW_PLATFORM_SUBTYPE_CDP_2))
-				target_panel_reset_jdi_a216(enable);
 		} else { /* msm8916 */
 			if ((hw_id == HW_PLATFORM_QRD) &&
 				 (hw_subtype == HW_PLATFORM_SUBTYPE_SKUH))
@@ -480,7 +429,7 @@ int target_panel_reset(uint8_t enable, struct panel_reset_sequence *resetseq,
 		if (pinfo->mipi.use_enable_gpio)
 			gpio_set_dir(enable_gpio.pin_id, 0);
 
-		if (platform_is_msm8939() || platform_is_msm8929()) {
+		if (platform_is_msm8939()) {
 			if ((hw_id == HW_PLATFORM_QRD) &&
 				 (hw_subtype == HW_PLATFORM_SUBTYPE_SKUK))
 				target_panel_reset_skuk(enable);
@@ -494,7 +443,7 @@ int target_panel_reset(uint8_t enable, struct panel_reset_sequence *resetseq,
 	return ret;
 }
 
-int target_ldo_ctrl(uint8_t enable, struct msm_panel_info *pinfo)
+int target_ldo_ctrl(uint8_t enable)
 {
 	/*
 	 * The PMIC regulators needed for display are enabled in SBL.
@@ -505,64 +454,21 @@ int target_ldo_ctrl(uint8_t enable, struct msm_panel_info *pinfo)
 
 bool target_display_panel_node(char *panel_name, char *pbuf, uint16_t buf_size)
 {
-	uint32_t hw_id = board_hardware_id();
-
-	dprintf(INFO, "%s:%d: hw_id=%d panel_name=\"%s\"\n", __func__, __LINE__, hw_id, panel_name);
-
-	switch (hw_id) {
-	case HW_PLATFORM_SBC:
-		while (panel_name[0] == ' ')
-			panel_name++;
-
-		if (0 == strlen(panel_name))
-			return gcdb_display_cmdline_arg(panel_name, pbuf, buf_size);
-
-		strlcpy(pbuf, ADV7533_CMDLINE_PREFIX, buf_size);
-
-		if (strstr(panel_name, "adv7533_1080p"))
-			strlcat(pbuf, ADV7533_I2C_HDMI_STRING, buf_size);
-		else if (strstr(panel_name, "adv7533_720p"))
-			strlcat(pbuf, ADV7533_I2C_HDMI_720p_STRING, buf_size);
-		else if (strstr(panel_name, "no_display"))
-			strlcat(pbuf, panel_name, buf_size);
-		else
-			strlcat(pbuf, ADV7533_I2C_DSI_STRING, buf_size);
-
-		strlcat(pbuf, DISPLAY_CMDLINE_PREFIX, buf_size);
-		strlcat(pbuf, DSI_PANEL_DT_PREFIX, buf_size);
-		strlcat(pbuf, panel_name, buf_size);
-		break;
-	case HW_PLATFORM_MTP:
-	default:
-		return gcdb_display_cmdline_arg(panel_name, pbuf, buf_size);
-	}
-
-	return true;
+	return gcdb_display_cmdline_arg(pbuf, buf_size);
 }
 
 void target_display_init(const char *panel_name)
 {
 	uint32_t panel_loop = 0;
 	uint32_t ret = 0;
-
-	panel_name += strspn(panel_name, " ");
-
-	if (!strcmp(panel_name, NO_PANEL_CONFIG)
-		|| !strcmp(panel_name, SIM_VIDEO_PANEL)
-		|| !strcmp(panel_name, SIM_CMD_PANEL)) {
-		dprintf(INFO, "Selected panel: %s\nSkip panel configuration\n",
-			panel_name);
-		return;
-	}
-
 	do {
-		target_force_cont_splash_disable(false);
 		ret = gcdb_display_init(panel_name, MDP_REV_50, MIPI_FB_ADDR);
 		if (!ret || ret == ERR_NOT_SUPPORTED) {
 			break;
 		} else {
 			target_force_cont_splash_disable(true);
 			msm_display_off();
+			target_force_cont_splash_disable(false);
 		}
 	} while (++panel_loop <= oem_panel_max_auto_detect_panels());
 }

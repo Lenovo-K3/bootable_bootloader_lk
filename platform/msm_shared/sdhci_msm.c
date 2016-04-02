@@ -40,9 +40,6 @@
 #include <sdhci.h>
 #include <sdhci_msm.h>
 
-
-#define MX_DRV_SUPPORTED_HS200 3
-
 /* Known data stored in the card & read during tuning
  * process. 64 bytes for 4bit bus width & 128 bytes
  * of data for 8 bit bus width.
@@ -142,8 +139,6 @@ static void sdhci_clear_power_ctrl_irq(struct sdhci_msm_data *data)
  */
 void sdhci_msm_init(struct sdhci_host *host, struct sdhci_msm_data *config)
 {
-	uint32_t io_switch;
-
 	/* Disable HC mode */
 	RMWREG32((config->pwrctl_base + SDCC_MCI_HC_MODE), SDHCI_HC_START_BIT, SDHCI_HC_WIDTH, 0);
 
@@ -156,26 +151,10 @@ void sdhci_msm_init(struct sdhci_host *host, struct sdhci_msm_data *config)
 	/* Enable sdhc mode */
 	RMWREG32((config->pwrctl_base + SDCC_MCI_HC_MODE), SDHCI_HC_START_BIT, SDHCI_HC_WIDTH, SDHCI_HC_MODE_EN);
 
-	/* Set the FF_CLK_SW_RST_DIS to 1 */
-	RMWREG32((config->pwrctl_base + SDCC_MCI_HC_MODE), FF_CLK_SW_RST_DIS_START, FF_CLK_SW_RST_DIS_WIDTH, 1);
-
 	/*
 	 * Reset the controller
 	 */
 	sdhci_reset(host, SDHCI_SOFT_RESET);
-
-	/*
-	 * Some platforms have same SDC instance shared between emmc & sd card.
-	 * For such platforms the emmc IO voltage has to be switched from 3.3 to
-	 * 1.8 for the contoller to work with emmc.
-	 */
-
-	if(config->use_io_switch)
-	{
-		io_switch = REG_READ32(host, SDCC_VENDOR_SPECIFIC_FUNC);
-		io_switch |= HC_IO_PAD_PWR_SWITCH | HC_IO_PAD_PWR_SWITCH_EN;
-		REG_WRITE32(host, io_switch, SDCC_VENDOR_SPECIFIC_FUNC);
-	}
 
 	/*
 	 * CORE_SW_RST may trigger power irq if previous status of PWRCTL
@@ -268,16 +247,13 @@ static void msm_set_dll_freq(struct sdhci_host *host)
 	else if (host->cur_clk_rate <= 200000000)
 		reg_val = 0x7;
 
-	DBG("\n %s: DLL freq: 0x%08x\n", __func__, reg_val);
-
 	REG_RMW32(host, SDCC_DLL_CONFIG_REG, SDCC_DLL_CONFIG_MCLK_START, SDCC_DLL_CONFIG_MCLK_WIDTH, reg_val);
 }
 
 /* Initialize DLL (Programmable Delay Line) */
-static uint32_t sdhci_msm_init_dll(struct sdhci_host *host)
+static void sdhci_msm_init_dll(struct sdhci_host *host)
 {
 	uint32_t pwr_save = 0;
-	uint32_t timeout = SDHCI_DLL_TIMEOUT;
 
 	pwr_save = REG_READ32(host, SDCC_VENDOR_SPECIFIC_FUNC) & SDCC_DLL_PWR_SAVE_EN;
 
@@ -300,23 +276,11 @@ static uint32_t sdhci_msm_init_dll(struct sdhci_host *host)
 	REG_WRITE32(host, (REG_READ32(host, SDCC_DLL_CONFIG_REG) | SDCC_DLL_EN), SDCC_DLL_CONFIG_REG);
 	/* Write 1 to CLK_OUT_EN */
 	REG_WRITE32(host, (REG_READ32(host, SDCC_DLL_CONFIG_REG) | SDCC_DLL_CLK_OUT_EN), SDCC_DLL_CONFIG_REG);
-	/* Wait for DLL_LOCK in DLL_STATUS register, wait time 50us */
-	while(!((REG_READ32(host, SDCC_REG_DLL_STATUS)) & SDCC_DLL_LOCK_STAT))
-	{
-		udelay(1);
-		timeout--;
-		if (!timeout)
-		{
-			dprintf(CRITICAL, "%s: Failed to get DLL lock: 0x%08x\n", __func__, REG_READ32(host, SDCC_REG_DLL_STATUS));
-			return 1;
-		}
-	}
-
+	/* Wait for DLL_LOCK in DLL_STATUS register */
+	while(!((REG_READ32(host, SDCC_REG_DLL_STATUS)) & SDCC_DLL_LOCK_STAT));
 	/* Set the powersave back on */
 	if (pwr_save)
-		REG_WRITE32(host, (REG_READ32(host, SDCC_VENDOR_SPECIFIC_FUNC) | SDCC_DLL_PWR_SAVE_EN), SDCC_VENDOR_SPECIFIC_FUNC);
-
-	return 0;
+		REG_WRITE32(host, (REG_READ32(host, SDCC_DLL_CONFIG_REG) | SDCC_DLL_PWR_SAVE_EN), SDCC_VENDOR_SPECIFIC_FUNC);
 }
 
 void sdhci_msm_toggle_cdr(struct sdhci_host *host, bool enable)
@@ -338,11 +302,9 @@ void sdhci_msm_toggle_cdr(struct sdhci_host *host, bool enable)
 }
 
 /* Configure DLL with delay value based on 'phase' */
-static uint32_t sdhci_msm_config_dll(struct sdhci_host *host, uint32_t phase)
+static void sdhci_msm_config_dll(struct sdhci_host *host, uint32_t phase)
 {
 	uint32_t core_cfg = 0;
-	uint32_t timeout = SDHCI_DLL_TIMEOUT;
-
 	/* Gray code values from SWI */
 	uint32_t gray_code [] = { 0x0, 0x1, 0x3, 0x2, 0x6, 0x7, 0x5, 0x4, 0xC, 0xD, 0xF, 0xE, 0xA, 0xB, 0x9, 0x8 };
 
@@ -360,17 +322,8 @@ static uint32_t sdhci_msm_config_dll(struct sdhci_host *host, uint32_t phase)
 
 	REG_WRITE32(host, (REG_READ32(host, SDCC_DLL_CONFIG_REG) | SDCC_DLL_CLK_OUT_EN), SDCC_DLL_CONFIG_REG);
 
-	/* Wait until CLK_OUT_EN is 1, wait time 50us */
-	while(!(REG_READ32(host, SDCC_DLL_CONFIG_REG) & SDCC_DLL_CLK_OUT_EN))
-	{
-		timeout--;
-		udelay(1);
-		if (!timeout)
-		{
-			dprintf(CRITICAL, "%s: clk_out_en timed out: %08x\n", __func__, REG_READ32(host, SDCC_DLL_CONFIG_REG));
-			return 1;
-		}
-	}
+	/* Wait until CLK_OUT_EN is 1 */
+	while(!(REG_READ32(host, SDCC_DLL_CONFIG_REG) & SDCC_DLL_CLK_OUT_EN));
 
 	core_cfg = REG_READ32(host, SDCC_DLL_CONFIG_REG);
 
@@ -379,7 +332,7 @@ static uint32_t sdhci_msm_config_dll(struct sdhci_host *host, uint32_t phase)
 
 	REG_WRITE32(host, core_cfg, SDCC_DLL_CONFIG_REG);
 
-	return 0;
+	return;
 }
 
 /*
@@ -487,45 +440,25 @@ static int sdhci_msm_find_appropriate_phase(struct sdhci_host *host,
 	return selected_phase;
 }
 
-static uint32_t sdhci_msm_cm_dll_sdc4_calibration(struct sdhci_host *host)
-{
-	uint32_t timeout = 0;
-
-	DBG("\n CM_DLL_SDC4 Calibration Start\n");
-
-	/*1.Write the DDR config value to SDCC_HC_REG_DDR_CONFIG register*/
-	REG_WRITE32(host, target_ddr_cfg_val(), SDCC_HC_REG_DDR_CONFIG);
-
-	/*2. Write DDR_CAL_EN to '1' */
-	REG_WRITE32(host, (REG_READ32(host, SDCC_HC_REG_DLL_CONFIG_2) | DDR_CAL_EN), SDCC_HC_REG_DLL_CONFIG_2);
-
-	/*3. Wait for DLL_LOCK for hs400 to be set */
-	timeout = DDR_CAL_TIMEOUT_MAX;
-	while (!(REG_READ32(host, SDCC_REG_DLL_STATUS) & DDR_DLL_LOCK_JDR))
-	{
-		timeout--;
-		mdelay(1);
-		if (!timeout)
-		{
-			dprintf(CRITICAL, "Error: DLL lock for hs400 operation is not set\n");
-			return 1;
-		}
-	}
-
-	/*4. Set powersave dll */
-	REG_WRITE32(host, (REG_READ32(host, SDCC_HC_VENDOR_SPECIFIC_FUNC3) | PWRSAVE_DLL), SDCC_HC_VENDOR_SPECIFIC_FUNC3);
-
-	DBG("\n CM_DLL_SDC4 Calibration Done\n");
-
-	return 0;
-}
-
 static uint32_t sdhci_msm_cdclp533_calibration(struct sdhci_host *host)
 {
 	uint32_t timeout;
 	uint32_t cdc_err;
 
-	DBG("\n CDCLP533 Calibration Start\n");
+	/* Reset & Initialize the DLL block */
+	sdhci_msm_init_dll(host);
+
+	/* Write the save phase */
+	sdhci_msm_config_dll(host, host->msm_host->saved_phase);
+
+	/* Configure the clocks needed for CDC */
+	clock_config_cdc(host->msm_host->slot);
+
+	/* Set the FF_CLK_SW_RST_DIS to 1 */
+	REG_WRITE32(host, (REG_READ32(host, SDCC_MCI_HC_MODE) | FW_CLK_SW_RST_DIS), SDCC_MCI_HC_MODE);
+
+	/* Write 1 to CMD_DAT_TRACK_SEL field in DLL_CONFIG */
+	REG_WRITE32(host, (REG_READ32(host, SDCC_DLL_CONFIG_REG) | CMD_DAT_TRACK_SEL), SDCC_DLL_CONFIG_REG);
 
 	/* Write 0 to CDC_T4_DLY_SEL field in VENDOR_SPEC_DDR200_CFG */
 	REG_WRITE32(host, (REG_READ32(host, SDCC_CDC_DDR200_CFG) & ~CDC_T4_DLY_SEL), SDCC_CDC_DDR200_CFG);
@@ -549,7 +482,7 @@ static uint32_t sdhci_msm_cdclp533_calibration(struct sdhci_host *host)
 	 * SDCC_CSR_CDC_CAL_TIMER_CFG1 -->  0x4
 	 * SDCC_CSR_CDC_REFCOUNT_CFG -->   0xCB732020
 	 * SDCC_CSR_CDC_COARSE_CAL_CFG -->  0xB19
-	 * SDCC_CSR_CDC_DELAY_CFG  -->   0x4E2
+	 * SDCC_CSR_CDC_DELAY_CFG  -->   0x3AC
 	 * SDCC_CDC_OFFSET_CFG     -->   0x0
 	 * SDCC_CDC_SLAVE_DDA_CFG  -->   0x16334
 	 */
@@ -560,7 +493,7 @@ static uint32_t sdhci_msm_cdclp533_calibration(struct sdhci_host *host)
 	REG_WRITE32(host, 0x4,        SDCC_CSR_CDC_CAL_TIMER_CFG1);
 	REG_WRITE32(host, 0xCB732020, SDCC_CSR_CDC_REFCOUNT_CFG);
 	REG_WRITE32(host, 0xB19,      SDCC_CSR_CDC_COARSE_CAL_CFG);
-	REG_WRITE32(host, 0x4E2,      SDCC_CSR_CDC_DELAY_CFG);
+	REG_WRITE32(host, 0x3AC,      SDCC_CSR_CDC_DELAY_CFG);
 	REG_WRITE32(host, 0x0,        SDCC_CDC_OFFSET_CFG);
 	REG_WRITE32(host, 0x16334,    SDCC_CDC_SLAVE_DDA_CFG);
 
@@ -577,7 +510,7 @@ static uint32_t sdhci_msm_cdclp533_calibration(struct sdhci_host *host)
 	REG_WRITE32(host, (REG_READ32(host, SDCC_CSR_CDC_CAL_TIMER_CFG0) | CDC_TIMER_EN), SDCC_CSR_CDC_CAL_TIMER_CFG0);
 
 	/* Wait for CALIBRATION_DONE in CDC_STATUS */
-	timeout = CDC_STATUS_TIMEOUT;
+	timeout = 50;
 	while (!(REG_READ32(host, SDCC_CSR_CDC_STATUS0) & BIT(0)))
 	{
 		timeout--;
@@ -598,34 +531,6 @@ static uint32_t sdhci_msm_cdclp533_calibration(struct sdhci_host *host)
 	/* Write 1 to START_CDC_TRAFFIC field in CORE_DDR200_CFG */
 	REG_WRITE32(host, (REG_READ32(host, SDCC_CDC_DDR200_CFG) | START_CDC_TRAFFIC), SDCC_CDC_DDR200_CFG);
 
-	DBG("\n CDCLP533 Calibration Done\n");
-
-	return 0;
-}
-
-
-static uint32_t sdhci_msm_hs400_calibration(struct sdhci_host *host)
-{
-	DBG("\n HS400 Calibration Start\n");
-
-	/* Reset & Initialize the DLL block */
-	if (sdhci_msm_init_dll(host))
-		return 1;
-
-	/* Write the save phase */
-	if (sdhci_msm_config_dll(host, host->msm_host->saved_phase))
-		return 1;
-
-	/* Write 1 to CMD_DAT_TRACK_SEL field in DLL_CONFIG */
-	REG_WRITE32(host, (REG_READ32(host, SDCC_DLL_CONFIG_REG) | CMD_DAT_TRACK_SEL), SDCC_DLL_CONFIG_REG);
-
-	if (host->use_cdclp533)
-		return sdhci_msm_cdclp533_calibration(host);
-	else
-		return sdhci_msm_cm_dll_sdc4_calibration(host);
-
-	DBG("\n HS400 Calibration Done\n");
-
 	return 0;
 }
 
@@ -633,9 +538,9 @@ static uint32_t sdhci_msm_hs400_calibration(struct sdhci_host *host)
  * Function: sdhci msm execute tuning
  * Arg     : Host structure & bus width
  * Return  : 0 on Success, 1 on Failure
- * Flow:   : Execute Tuning sequence for HS200 and calibration for hs400
+ * Flow:   : Execute Tuning sequence for HS200
  */
-uint32_t sdhci_msm_execute_tuning(struct sdhci_host *host, struct mmc_card *card, uint32_t bus_width)
+uint32_t sdhci_msm_execute_tuning(struct sdhci_host *host, uint32_t bus_width)
 {
 	uint32_t *tuning_block;
 	uint32_t *tuning_data;
@@ -643,10 +548,7 @@ uint32_t sdhci_msm_execute_tuning(struct sdhci_host *host, struct mmc_card *card
 	uint32_t size;
 	uint32_t phase = 0;
 	uint32_t tuned_phase_cnt = 0;
-	uint8_t drv_type = 0;
-	bool drv_type_changed = false;
 	int ret = 0;
-	int i;
 	struct sdhci_msm_data *msm_host;
 
 	msm_host = host->msm_host;
@@ -657,7 +559,7 @@ uint32_t sdhci_msm_execute_tuning(struct sdhci_host *host, struct mmc_card *card
 	/* Calibration for CDCLP533 needed for HS400 mode */
 	if (msm_host->tuning_done && !msm_host->calibration_done && host->timing == MMC_HS400_TIMING)
 	{
-		ret = sdhci_msm_hs400_calibration(host);
+		ret = sdhci_msm_cdclp533_calibration(host);
 		if (!ret)
 			msm_host->calibration_done = true;
 		goto out;
@@ -679,26 +581,14 @@ uint32_t sdhci_msm_execute_tuning(struct sdhci_host *host, struct mmc_card *card
 	ASSERT(tuning_data);
 
 	/* Reset & Initialize the DLL block */
-	if (sdhci_msm_init_dll(host))
-	{
-			ret = 1;
-			goto free;
-	}
-
-retry_tuning:
-	tuned_phase_cnt = 0;
-	phase = 0;
+	sdhci_msm_init_dll(host);
 
 	while (phase < MAX_PHASES)
 	{
 		struct mmc_command cmd = {0};
 
 		/* configure dll to set phase delay */
-		if (sdhci_msm_config_dll(host, phase))
-		{
-			ret = 1;
-			goto free;
-		}
+		sdhci_msm_config_dll(host, phase);
 
 		cmd.cmd_index = CMD21_SEND_TUNING_BLOCK;
 		cmd.argument = 0x0;
@@ -717,34 +607,9 @@ retry_tuning:
 		phase++;
 	}
 
-	/*
-	 * Check if all the tuning phases passed */
-	if (tuned_phase_cnt == MAX_PHASES)
-	{
-		/* Change the driver type & rerun tuning */
-		while(++drv_type <= MX_DRV_SUPPORTED_HS200)
-		{
-			drv_type_changed = mmc_set_drv_type(host, card, drv_type);
-			if (drv_type_changed)
-			{
-				goto retry_tuning;
-			}
-		}
-	}
-
-	/* Restore the driver strength to default value */
-	if (drv_type_changed)
-		mmc_set_drv_type(host, card, 0);
-
 	/* Find the appropriate tuned phase */
 	if (tuned_phase_cnt)
 	{
-		DBG("\n Tuned phase\n");
-		for (i = 0 ; i < tuned_phase_cnt ; i++)
-		{
-			DBG("%d\t", tuned_phases[i]);
-		}
-
 		ret = sdhci_msm_find_appropriate_phase(host, tuned_phases, tuned_phase_cnt);
 
 		if (ret < 0)
@@ -757,10 +622,7 @@ retry_tuning:
 		phase = (uint32_t) ret;
 		ret = 0;
 
-		DBG("\n: %s: Tuned Phase: 0x%08x\n", __func__, phase);
-
-		if (sdhci_msm_config_dll(host, phase))
-			goto free;
+		sdhci_msm_config_dll(host, phase);
 
 		/* Save the tuned phase */
 		host->msm_host->saved_phase = phase;

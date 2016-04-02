@@ -36,23 +36,6 @@
 #define MIPI_DSI1_BASE MIPI_DSI_BASE
 #endif
 
-#define MMSS_DSI_CLKOUT_TIMING_CTRL               0x0c4
-#define MMSS_DSI_PHY_TIMING_CTRL_0                0x0140
-#define MMSS_DSI_PHY_CTRL_0                       0x0170
-#define MMSS_DSI_PHY_CTRL_1                       0x0174
-#define MMSS_DSI_PHY_CTRL_2                       0x0178
-#define MMSS_DSI_PHY_STRENGTH_CTRL_0              0x0184
-#define MMSS_DSI_PHY_STRENGTH_CTRL_1              0x0188
-#define MMSS_DSI_PHY_BIST_CTRL_0                  0x01b4
-#define MMSS_DSI_PHY_GLBL_TEST_CTRL               0x01d4
-#define MMSS_DSI_PHY_LDO_CTRL                     0x01dc
-
-#define TOTAL_TIMING_CTRL_CONFIG                  12
-#define TOTAL_BIST_CTRL_CONFIG                    6
-/* 4 data lanes and 1 clock lanes */
-#define TOTAL_LANE_COUNT                          5
-#define CONFIG_REG_FOR_EACH_LANE                  9
-
 static void mipi_dsi_calibration(void)
 {
 	uint32_t i = 0;
@@ -214,58 +197,29 @@ void mdss_dsi_phy_sw_reset(uint32_t ctl_base)
 	udelay(100);
 }
 
-int mdss_dsi_phy_regulator_init(struct mdss_dsi_phy_ctrl *pd, uint32_t phy_base)
+int mdss_dsi_phy_regulator_init(struct mdss_dsi_phy_ctrl *pd)
 {
 	/* DSI0 and DSI1 have a common regulator */
 
 	uint32_t off = 0x0280;	/* phy regulator ctrl settings */
 
-	if (pd->regulator_mode == DSI_PHY_REGULATOR_LDO_MODE) {
-		/* Regulator ctrl 0 */
-		writel(0x00, DSI0_PHY_BASE + off + (4 * 0));
-		/* Regulator ctrl - CAL_PWD_CFG */
-		writel(pd->regulator[6], DSI0_PHY_BASE + off + (4 * 6));
-		/* Add h/w recommended delay */
-		udelay(1000);
-		/* Regulator ctrl - TEST */
-		writel(pd->regulator[5], DSI0_PHY_BASE + off + (4 * 5));
-		/* Regulator ctrl 3 */
-		writel(pd->regulator[3], DSI0_PHY_BASE + off + (4 * 3));
-		/* Regulator ctrl 2 */
-		writel(pd->regulator[2], DSI0_PHY_BASE + off + (4 * 2));
-		/* Regulator ctrl 1 */
-		writel(pd->regulator[1], DSI0_PHY_BASE + off + (4 * 1));
-		/* Regulator ctrl 4 */
-		writel(pd->regulator[4], DSI0_PHY_BASE + off + (4 * 4));
-		/* LDO ctrl */
-		if (readl(MIPI_DSI0_BASE) == DSI_HW_REV_103_1) /* 8916/8939 */
-			writel(0x05, phy_base + 0x01dc);
-		else if (readl(MIPI_DSI0_BASE) == DSI_HW_REV_103) /* 8994 */
-			writel(0x1d, phy_base + 0x01dc);
-		else
-			writel(0x0d, phy_base + 0x01dc);
-		dmb();
-	} else {
-		/* Regulator ctrl 0 */
-		writel(0x00, DSI0_PHY_BASE + off + (4 * 0));
-		/* Regulator ctrl - CAL_PWD_CFG */
-		writel(pd->regulator[6], DSI0_PHY_BASE + off + (4 * 6));
-		/* Add h/w recommended delay */
-		udelay(1000);
-		/* Regulator ctrl 1 */
-		writel(pd->regulator[1], DSI0_PHY_BASE + off + (4 * 1));
-		/* Regulator ctrl 2 */
-		writel(pd->regulator[2], DSI0_PHY_BASE + off + (4 * 2));
-		/* Regulator ctrl 3 */
-		writel(pd->regulator[3], DSI0_PHY_BASE + off + (4 * 3));
-		/* Regulator ctrl 4 */
-		writel(pd->regulator[4], DSI0_PHY_BASE + off + (4 * 4));
-		/* LDO ctrl */
-		writel(0x00, phy_base + 0x01dc);
-		/* Regulator ctrl 0 */
-		writel(pd->regulator[0], DSI0_PHY_BASE + off + (4 * 0));
-		dmb();
-	}
+	/* Regulator ctrl 0 */
+	writel(0x00, DSI0_PHY_BASE + off + (4 * 0));
+	/* Regulator ctrl - CAL_PWD_CFG */
+	writel(pd->regulator[6], DSI0_PHY_BASE + off + (4 * 6));
+	/* Regulator ctrl - TEST */
+	writel(pd->regulator[5], DSI0_PHY_BASE + off + (4 * 5));
+	/* Regulator ctrl 3 */
+	writel(pd->regulator[3], DSI0_PHY_BASE + off + (4 * 3));
+	/* Regulator ctrl 2 */
+	writel(pd->regulator[2], DSI0_PHY_BASE + off + (4 * 2));
+	/* Regulator ctrl 1 */
+	writel(pd->regulator[1], DSI0_PHY_BASE + off + (4 * 1));
+	/* Regulator ctrl 0 */
+	writel(pd->regulator[0], DSI0_PHY_BASE + off + (4 * 0));
+	/* Regulator ctrl 4 */
+	writel(pd->regulator[4], DSI0_PHY_BASE + off + (4 * 4));
+	dmb();
 }
 
 int mdss_dsi_v2_phy_init(struct mipi_dsi_panel_config *pinfo, uint32_t ctl_base)
@@ -320,7 +274,7 @@ int mdss_dsi_v2_phy_init(struct mipi_dsi_panel_config *pinfo, uint32_t ctl_base)
 	return 0;
 }
 
-static int mdss_dsi_phy_28nm_init(struct mipi_dsi_panel_config *pinfo,
+int mdss_dsi_phy_init(struct mipi_dsi_panel_config *pinfo,
 				uint32_t ctl_base, uint32_t phy_base)
 {
 	struct mdss_dsi_phy_ctrl *pd;
@@ -334,7 +288,15 @@ static int mdss_dsi_phy_28nm_init(struct mipi_dsi_panel_config *pinfo,
 	/* Strength ctrl 0 */
 	writel(pd->strength[0], phy_base + 0x0184);
 
-	mdss_dsi_phy_regulator_init(pd, phy_base);
+	if (pd->regulator_mode == DSI_PHY_REGULATOR_LDO_MODE)
+		pd->regulator[0] = 0x2; /* LDO mode */
+	mdss_dsi_phy_regulator_init(pd);
+
+	/* DSIPHY_REGULATOR_CTRL_0 */
+	if (pd->regulator_mode == DSI_PHY_REGULATOR_LDO_MODE)
+		writel(0x25, phy_base + 0x01dc); /* LDO mode */
+	else
+		writel(0x00, phy_base + 0x01dc); /* DCDC mode */
 
 	off = 0x0140;	/* phy timing ctrl 0 - 11 */
 	for (i = 0; i < 12; i++) {
@@ -348,6 +310,8 @@ static int mdss_dsi_phy_28nm_init(struct mipi_dsi_panel_config *pinfo,
 	/* MMSS_DSI_0_PHY_DSIPHY_CTRL_0 */
 	writel(0x5f, phy_base + 0x0170);
 
+	/* Strength ctrl 1 */
+	writel(pd->strength[1], phy_base + 0x0188);
 	dmb();
 	/* 4 lanes + clk lane configuration */
 	/* lane config n * (0 - 4) & DataPath setup */
@@ -384,90 +348,4 @@ static int mdss_dsi_phy_28nm_init(struct mipi_dsi_panel_config *pinfo,
 	writel(0x41b, ctl_base + 0x0c4);
 	dmb();
 
-}
-
-void mdss_dsi_phy_contention_detection(
-		struct mipi_dsi_panel_config *pinfo,
-		uint32_t phy_base)
-{
-        struct mdss_dsi_phy_ctrl *pd;
-
-        if (mdp_get_revision() == MDP_REV_304)
-                return;
-
-        pd = (pinfo->mdss_dsi_phy_config);
-	writel(pd->strength[1], phy_base + 0x0188);
-	dmb();
-}
-
-static int mdss_dsi_phy_20nm_init(struct mipi_dsi_panel_config *pinfo,
-				uint32_t ctl_base, uint32_t phy_base)
-{
-	struct mdss_dsi_phy_ctrl *pd = pinfo->mdss_dsi_phy_config;
-	uint32_t i, off = 0, ln, offset;
-
-	/* Strength ctrl 0 */
-	writel(pd->strength[0], phy_base + MMSS_DSI_PHY_STRENGTH_CTRL_0);
-
-	mdss_dsi_phy_regulator_init(pd, phy_base);
-
-	off = MMSS_DSI_PHY_TIMING_CTRL_0;
-	for (i = 0; i < TOTAL_TIMING_CTRL_CONFIG; i++, off += 4) {
-		writel(pd->timing[i], phy_base + off);
-		dmb();
-	}
-
-        /* Currently the Phy settings for the DSI 0 is done in clk prepare*/
-	if (phy_base == DSI1_PHY_BASE) {
-		writel(0x00, phy_base + MMSS_DSI_PHY_CTRL_1);
-		writel(0x05, phy_base + MMSS_DSI_PHY_CTRL_0);
-		dmb();
-
-		writel(0x7f, phy_base + MMSS_DSI_PHY_CTRL_0);
-		dmb();
-
-		/* BITCLK_HS_SEL should be set to 0 for left */
-		writel(0x00, phy_base + MMSS_DSI_PHY_GLBL_TEST_CTRL);
-
-		writel(0x00, phy_base + MMSS_DSI_PHY_CTRL_2);
-		writel(0x02, phy_base + MMSS_DSI_PHY_CTRL_2);
-		writel(0x03, phy_base + MMSS_DSI_PHY_CTRL_2);
-		dmb();
-	}
-
-	writel(pd->strength[1], phy_base + MMSS_DSI_PHY_STRENGTH_CTRL_1);
-	dmb();
-
-	for (ln = 0; ln < TOTAL_LANE_COUNT; ln++) {
-		off = (ln * 0x40);
-		for (i = 0; i < CONFIG_REG_FOR_EACH_LANE; i++, off += 4) {
-			offset = i + (ln * CONFIG_REG_FOR_EACH_LANE);
-			writel(pd->laneCfg[offset], phy_base + off);
-			dmb();
-		}
-	}
-
-	dmb();
-
-	off = MMSS_DSI_PHY_BIST_CTRL_0;
-	for (i = 0; i < TOTAL_BIST_CTRL_CONFIG; i++, off +=4) {
-		writel(pd->bistCtrl[i], phy_base + off);
-	}
-	dmb();
-
-	writel(0x41b, ctl_base + MMSS_DSI_CLKOUT_TIMING_CTRL);
-	dmb();
-}
-
-int mdss_dsi_phy_init (struct mipi_dsi_panel_config *pinfo,
-				uint32_t ctl_base, uint32_t phy_base)
-{
-	int ret;
-
-	if (pinfo->mdss_dsi_phy_config->is_pll_20nm)
-		ret = mdss_dsi_phy_20nm_init(pinfo, ctl_base, phy_base);
-	else
-		ret = mdss_dsi_phy_28nm_init(pinfo, ctl_base, phy_base);
-
-	return ret;
 }

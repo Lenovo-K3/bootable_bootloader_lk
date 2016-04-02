@@ -2,7 +2,7 @@
  * Copyright (c) 2009, Google Inc.
  * All rights reserved.
  *
- * Copyright (c) 2009-2015, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2009-2014, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -47,8 +47,6 @@
 
 #define SMEM_TARGET_INFO_IDENTIFIER     0x49494953
 
-#define SMEM_NUM_SMD_STREAM_CHANNELS        64
-
 enum smem_ram_ptable_version
 {
 	SMEM_RAM_PTABLE_VERSION_0,
@@ -73,7 +71,7 @@ struct smem_alloc_info {
 	unsigned allocated;
 	unsigned offset;
 	unsigned size;
-	unsigned base_ext;
+	unsigned reserved;
 };
 
 struct smem_board_info_v2 {
@@ -203,12 +201,46 @@ typedef struct {
 	unsigned int bl_error_code;
 } boot_ssd_status;
 
+#if PLATFORM_MSM7X30
+
+typedef struct {
+	boot_symmetric_key_info key_info;
+	uint32_t boot_flags;
+	uint32_t boot_key_press[5];
+	uint32_t time_tick;
+	boot_ssd_status status;
+	uint8_t buff_align[4];
+} boot_info_for_apps;
+
+#elif PLATFORM_MSM7K
+
+typedef struct {
+	uint32_t apps_img_start_addr;
+	uint32_t boot_flags;
+	boot_ssd_status status;
+} boot_info_for_apps;
+
+#elif PLATFORM_MSM7X27A
+
+typedef struct {
+	uint32_t apps_img_start_addr;
+	uint32_t boot_flags;
+	boot_ssd_status status;
+	boot_symmetric_key_info key_info;
+	uint16_t boot_key_press[10];
+	uint32_t timetick;
+	uint8_t PAD[28];
+} boot_info_for_apps;
+
+#else
+
 /* Dummy structure to keep it for other targets */
 typedef struct {
 	uint32_t boot_flags;
 	boot_ssd_status status;
 } boot_info_for_apps;
 
+#endif
 
 /* chip information */
 enum {
@@ -261,6 +293,7 @@ enum {
 	MSM8630AA = 143,
 	MSM8230AA = 144,
 	MSM8626   = 145,
+	MPQ8092   = 146,
 	MSM8610   = 147,
 	MDM9225   = 149,
 	MDM9225M  = 150,
@@ -304,7 +337,7 @@ enum {
 	MSM8926   = 200,
 	MSM8326   = 205,
 	MSM8916   = 206,
-	MSM8994   = 207,
+	MSMPLUTONIUM = 207,
 	APQ8074AA  = 208,
 	APQ8074AB  = 209,
 	APQ8074AC  = 210,
@@ -324,39 +357,22 @@ enum {
 	MSM8928  = 224,
 	MSM8510  = 225,
 	MSM8512  = 226,
-	MSM8936  = 233,
-	MSMZIRC  = 234,
 	MSM8939  = 239,
 	APQ8036  = 240,
 	APQ8039  = 241,
 	MSM8236  = 242,
 	MSM8636  = 243,
-	MSM8909  = 245,
+	MSM8936  = 233,
 	APQ8016  = 247,
 	MSM8216  = 248,
 	MSM8116  = 249,
 	MSM8616  = 250,
-	MSM8992  = 251,
-	APQ8092  = 252,
 	APQ8094  = 253,
 	FSM9008  = 254,
 	FSM9010  = 255,
 	FSM9016  = 256,
 	FSM9055  = 257,
-	MSM8209  = 258,
-	MSM8208  = 259,
-	MDM9209  = 260,
-	MDM9309  = 261,
-	MDM9609  = 262,
 	MSM8239  = 263,
-	APQ8009  = 265,
-	MSM8929  = 268,
-	MSM8629  = 269,
-	MSM8229  = 270,
-	APQ8029  = 271,
-	MSM8609  = 275,
-	MSM8909W = 300,
-	APQ8009W = 301,
 };
 
 enum platform {
@@ -390,28 +406,21 @@ enum platform_subtype {
 	HW_PLATFORM_SUBTYPE_CSFB = 1,
 	HW_PLATFORM_SUBTYPE_SVLTE1 = 2,
 	HW_PLATFORM_SUBTYPE_SVLTE2A = 3,
-	HW_PLATFORM_SUBTYPE_SURF_WEAR = 3,
-	HW_PLATFORM_SUBTYPE_MTP_WEAR = 5,
 	HW_PLATFORM_SUBTYPE_SGLTE = 6,
 	HW_PLATFORM_SUBTYPE_DSDA = 7,
-	HW_PLATFORM_SUBTYPE_IOE = 8,
 	HW_PLATFORM_SUBTYPE_DSDA2 = 8,
 	HW_PLATFORM_SUBTYPE_SGLTE2 = 9,
-	HW_PLATFORM_SUBTYPE_SWOC_WEAR = 9,
 	HW_PLATFORM_SUBTYPE_32BITS = 0x7FFFFFFF
 };
 
 typedef enum {
 	SMEM_SPINLOCK_ARRAY = 7,
+
 	SMEM_AARM_PARTITION_TABLE = 9,
-	SMEM_CHANNEL_ALLOC_TBL = 13,
-	SMEM_SMD_BASE_ID = 14,
 
 	SMEM_APPS_BOOT_MODE = 106,
 
 	SMEM_BOARD_INFO_LOCATION = 137,
-
-	SMEM_SMD_FIFO_BASE_ID = 338,
 
 	SMEM_USABLE_RAM_PARTITION_TABLE = 402,
 
@@ -562,8 +571,4 @@ int smem_ram_ptable_init_v1(); /* Used on platforms that use ram ptable v1 */
 void smem_get_ram_ptable_entry(ram_partition*, uint32_t entry);
 uint32_t smem_get_ram_ptable_version(void);
 uint32_t smem_get_ram_ptable_len(void);
-void* smem_get_alloc_entry(smem_mem_type_t type, uint32_t* size);
-uint32_t get_ddr_start();
-uint64_t smem_get_ddr_size();
-size_t smem_get_hw_platform_name(void *buf, uint32_t buf_size);
 #endif				/* __PLATFORM_MSM_SHARED_SMEM_H */

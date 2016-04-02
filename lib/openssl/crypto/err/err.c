@@ -603,7 +603,7 @@ static void build_SYS_str_reasons(void)
 			char *src = strerror(i);
 			if (src != NULL)
 				{
-				strlcpy(*dest, src, sizeof *dest);
+				strncpy(*dest, src, sizeof *dest);
 				(*dest)[sizeof *dest - 1] = '\0';
 				str->string = *dest;
 				}

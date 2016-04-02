@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -76,19 +76,25 @@ static char sharp_qhd_video_on_cmd1[] = {
 
 
 static char sharp_qhd_video_on_cmd2[] = {
-0x53, 0x0c, 0x15, 0x80 };
+0x53, 0x2c, 0x15, 0x80 };
 
 
 static char sharp_qhd_video_on_cmd3[] = {
-0x29, 0x00, 0x05, 0x80 };
+0x51, 0xff, 0x15, 0x80 };
 
 
 static char sharp_qhd_video_on_cmd4[] = {
-0xae, 0x03, 0x15, 0x80 };
+0x29, 0x00, 0x05, 0x80 };
 
 
 static char sharp_qhd_video_on_cmd5[] = {
+0xae, 0x03, 0x15, 0x80 };
+
+
+static char sharp_qhd_video_on_cmd6[] = {
 0x3a, 0x77, 0x15, 0x80 };
+
+
 
 
 static struct mipi_dsi_cmd sharp_qhd_video_on_command[] = {
@@ -97,10 +103,11 @@ static struct mipi_dsi_cmd sharp_qhd_video_on_command[] = {
 { 0x4 , sharp_qhd_video_on_cmd2},
 { 0x4 , sharp_qhd_video_on_cmd3},
 { 0x4 , sharp_qhd_video_on_cmd4},
-{ 0x4 , sharp_qhd_video_on_cmd5}
+{ 0x4 , sharp_qhd_video_on_cmd5},
+{ 0x4 , sharp_qhd_video_on_cmd6}
 };
+#define SHARP_QHD_VIDEO_ON_COMMAND 7
 
-#define SHARP_QHD_VIDEO_ON_COMMAND 6
 
 static char sharp_qhd_videooff_cmd0[] = {
 0x28, 0x00, 0x05, 0x80 };
@@ -144,7 +151,7 @@ static struct videopanel_info sharp_qhd_video_video_panel = {
 /*---------------------------------------------------------------------------*/
 
 static struct lane_configuration sharp_qhd_video_lane_config = {
-  2, 0, 1, 1, 0, 0, 0
+  2, 0, 1, 1, 0, 0
 };
 
 

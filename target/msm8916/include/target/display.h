@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -41,10 +41,6 @@ static struct gpio_pin reset_gpio = {
   "msmgpio", 25, 3, 1, 0, 1
 };
 
-static struct gpio_pin ts_reset_gpio = {
-  "msmgpio", 12, 3, 1, 0, 1
-};
-
 static struct gpio_pin enable_gpio = {
   "msmgpio", 97, 3, 1, 0, 1
 };
@@ -53,22 +49,12 @@ static struct gpio_pin bkl_gpio = {
   "msmgpio", 98, 3, 1, 0, 1
 };
 
-/*Use GPIO 75 for incell panel setup*/
-static struct gpio_pin enable_gpio_1 = {
-  "msmgpio", 75, 3, 1, 0, 1
-};
-
 static struct gpio_pin enp_gpio = {
   "msmgpio", 97, 3, 1, 0, 1
 };
 
 static struct gpio_pin enn_gpio = {
   "msmgpio", 32, 3, 1, 0, 1
-};
-
-/*Use GPIO 77 for incell panel setup*/
-static struct gpio_pin enn_gpio_1 = {
-  "msmgpio", 77, 3, 1, 0, 1
 };
 
 static struct gpio_pin te_gpio = {
@@ -91,10 +77,6 @@ static struct gpio_pin enn_gpio_skuk = {
   "msmgpio", 98, 3, 1, 0, 1
 };
 
-static struct gpio_pin enable_gpio_skut1 = {
-  "msmgpio", 8, 3, 1, 0, 1
-};
-
 /*---------------------------------------------------------------------------*/
 /* Target Physical configuration                                             */
 /*---------------------------------------------------------------------------*/
@@ -107,14 +89,8 @@ static const char panel_bist_ctrl[] = {
   0x00, 0x00, 0xb1, 0xff, 0x00, 0x00
 };
 
-extern uint32_t panel_regulator_settings[7];
-
-static const uint32_t dcdc_regulator_settings[] = {
-  0x03, 0x08, 0x07, 0x00, 0x20, 0x07, 0x01
-};
-
-static const uint32_t ldo_regulator_settings[] = {
-  0x00, 0x01, 0x01, 0x00, 0x20, 0x07, 0x00
+static const uint32_t panel_regulator_settings[] = {
+  0x07, 0x09, 0x03, 0x00, 0x20, 0x00, 0x01
 };
 
 static const char panel_lane_config[] = {
@@ -132,18 +108,7 @@ static const uint32_t panel_physical_ctrl[] = {
 /*---------------------------------------------------------------------------*/
 /* Other Configuration                                                       */
 /*---------------------------------------------------------------------------*/
-#define DISPLAY_CMDLINE_PREFIX	" mdss_mdp.panel="
-#define ADV7533_CMDLINE_PREFIX	" adv7533_dsi2hdmi.panel="
-#define HDMI_PANEL_NAME			"hdmi"
-#define HDMI_CONTROLLER_STRING	"hdmi:0"
-#define DSI_PANEL_DT_PREFIX				"1:dsi:0:qcom,mdss_dsi_"
-#define ADV7533_DSI_HDMI_STRING	"dsi:0:qcom,mdss_dsi_adv7533_1080p"
-#define ADV7533_DSI_HDMI_720p_STRING	"dsi:0:qcom,mdss_dsi_adv7533_720p"
-#define ADV7533_I2C_HDMI_STRING			"hdmi1080p"
-#define ADV7533_I2C_HDMI_720p_STRING	"hdmi720p"
-#define ADV7533_DSI_DSI_STRING	"dsi:0:qcom,mdss_dsi_jdi_1080p_video"
-#define ADV7533_I2C_DSI_STRING	"dsi"
-#define ADV7533_MAX_STRING_LEN	73
+#define DISPLAY_CMDLINE_PREFIX " mdss_mdp.panel="
 
 #define MIPI_FB_ADDR 0x83200000
 
@@ -158,32 +123,9 @@ static const uint32_t panel_physical_ctrl[] = {
 enum qrd_subtype
 {
 	HW_PLATFORM_SUBTYPE_DEFAULT = 0,
-	HW_PLATFORM_SUBTYPE_CDP_1 = 1,
-	HW_PLATFORM_SUBTYPE_CDP_2 = 2,
-	HW_PLATFORM_SUBTYPE_MTP_3 = 3,
 	HW_PLATFORM_SUBTYPE_SKUH = 4,
 	HW_PLATFORM_SUBTYPE_SKUI = 5, /* msm8916 */
 	HW_PLATFORM_SUBTYPE_SKUK = 5, /* msm8939 */
-	HW_PLATFORM_SUBTYPE_SKUT1 = 0x40, /* msm8916 */
-};
-
-enum {
-	JDI_1080P_VIDEO_PANEL,
-	NT35590_720P_VIDEO_PANEL,
-	NT35590_720P_CMD_PANEL,
-	INNOLUX_720P_VIDEO_PANEL,
-	OTM8019A_FWVGA_VIDEO_PANEL,
-	OTM1283A_720P_VIDEO_PANEL,
-	NT35596_1080P_VIDEO_PANEL,
-	SHARP_WQXGA_DUALDSI_VIDEO_PANEL,
-	JDI_FHD_VIDEO_PANEL,
-	HX8379A_FWVGA_VIDEO_PANEL,
-	HX8394D_720P_VIDEO_PANEL,
-	NT35521_WXGA_VIDEO_PANEL,
-	R61318_HD_VIDEO_PANEL,
-	R63417_1080P_VIDEO_PANEL,
-	JDI_A216_FHD_VIDEO_PANEL,
-	UNKNOWN_PANEL
 };
 
 #endif

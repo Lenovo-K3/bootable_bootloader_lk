@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -35,7 +35,6 @@
 #include <platform/irqs.h>
 #include <ufs_hw.h>
 #include <utp.h>
-#include <ufs.h>
 
 uint64_t ufs_alloc_trans_req_list()
 {
@@ -92,54 +91,17 @@ void ufs_irq_enable(struct ufs_dev *dev, uint32_t irq)
 
 enum handler_return ufs_irq_handler(void* data)
 {
-	uint32_t val, val_uecpa, val_uecdl, base;
+	uint32_t       val;
 	struct ufs_dev *dev = (struct ufs_dev *) data;
 	struct ufs_req_irq_type irq;
-	base = dev->base;
-	val = readl(UFS_IS(base));
-	if (val & UFS_IS_SBFES)
+
+	val = readl(UFS_IS(dev->base));
+
+	if (val & UFS_IS_SBFES || val & UFS_IS_HCFES || val & UFS_IS_UTPES || val & UFS_IS_DFES || val & UFS_IS_UE)
 	{
 		/* Controller might be in a bad state, unrecoverable error. */
-		dprintf(CRITICAL, "UFS error: System Bus Fatal Error\n");
+		dprintf(CRITICAL, "UFS error\n");
 		ASSERT(0);
-	}
-	else if (val & UFS_IS_UTPES)
-	{
-		/* Unrecoverable error occured at the utp layer */
-		dprintf(CRITICAL, "UFS error: UTP Error\n");
-		ASSERT(0);
-	}
-	else if ((val & UFS_IS_HCFES) || (val & UFS_IS_DFES))
-	{
-		/* Controller might be in a bad state, unrecoverable error. */
-		/* HCFES: Host Controller Fatal Error Status */
-		/* DFES: Device Fatal Error Status */
-		dprintf(CRITICAL, "UFS error: HCFES:0x%x DFES:0x%x\n",
-		                val & UFS_IS_HCFES, val & UFS_IS_DFES);
-		ASSERT(0);
-	}
-	else if (val & UFS_IS_UE)
-	{
-		/* Error in one of the layers in the UniPro stack */
-		dprintf(CRITICAL, "UFS error: UE.\n");
-		/* Check if the error is because of UECPA or UECDL */
-		val_uecpa = readl(UFS_UECPA(base));
-		val_uecdl = readl(UFS_UECDL(base));
-		if((val_uecpa & UFS_IS_UECPA) || (val_uecdl & UFS_IS_UECDL))
-		{
-			dprintf(CRITICAL, "UIC non-fatal error. IS: 0x%x UECPA: 0x%x UECDL: 0x%x\n",
-								val, val_uecpa, val_uecdl);
-			irq.irq_handled = BIT(2);
-			val &= ~UFS_IS_UE;
-			writel(irq.irq_handled, UFS_IS(dev->base));
-			dprintf(CRITICAL, "UIC non-fatal error handled. Pending interrupt mask: 0x%x\n", val);
-		}
-		else
-		{
-			dprintf(CRITICAL, "UIC fatal error.\n");
-			ufs_dump_hc_registers(dev);
-			ASSERT(0);
-		}
 	}
 
 	while (val)

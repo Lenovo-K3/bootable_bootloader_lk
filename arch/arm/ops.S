@@ -1,8 +1,6 @@
 /*
  * Copyright (c) 2008 Travis Geiselbrecht
  *
- * Copyright (c) 2014, The Linux Foundation. All rights reserved.
- *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files
  * (the "Software"), to deal in the Software without restriction,
@@ -190,7 +188,9 @@ FUNCTION(atomic_or)
 /* void arch_idle(); */
 FUNCTION(arch_idle)
 #if ARM_CPU_CORTEX_A8
-	wfi
+	.word 0xe320f003 /* wfi */
+#elif PLATFORM_MSM7K
+	/* TODO: safely handle wfi */
 #elif ARM_CPU_ARM1136 || ARM_CPU_ARM926
 	mov	r0, #0
 	mcr	p15, 0, r0, c7, c0, #4

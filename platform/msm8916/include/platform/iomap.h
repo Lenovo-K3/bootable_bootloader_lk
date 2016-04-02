@@ -1,4 +1,4 @@
-/* Copyright (c) 2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -43,13 +43,8 @@
 #define SDRAM_START_ADDR            0x80000000
 
 #define MSM_SHARED_BASE             0x86300000
-#define APPS_SS_BASE                0x0B000000
 
-#define DDR_START                   get_ddr_start()
-#define ABOOT_FORCE_KERNEL_ADDR     DDR_START + 0x8000
-#define ABOOT_FORCE_KERNEL64_ADDR   DDR_START + 0x80000
-#define ABOOT_FORCE_RAMDISK_ADDR    DDR_START + 0x2000000
-#define ABOOT_FORCE_TAGS_ADDR       DDR_START + 0x1E00000
+#define APPS_SS_BASE                0x0B000000
 
 #define MSM_GIC_DIST_BASE           APPS_SS_BASE
 #define MSM_GIC_CPU_BASE            (APPS_SS_BASE + 0x2000)
@@ -148,18 +143,6 @@
 #define USB_HS_SYSTEM_CMD_RCGR      (CLK_CTL_BASE + 0x41010)
 #define USB_HS_SYSTEM_CFG_RCGR      (CLK_CTL_BASE + 0x41014)
 
-
-/* RPMB send receive buffer needs to be mapped
- * as device memory, define the start address
- * and size in MB
- */
-#define RPMB_SND_RCV_BUF            0x90000000
-#define RPMB_SND_RCV_BUF_SZ         0x1
-
-/* QSEECOM: Secure app region notification */
-#define APP_REGION_ADDR 0x86000000
-#define APP_REGION_SIZE 0x300000
-
 /* MDSS */
 #define MIPI_DSI_BASE               (0x1A98000)
 #define MIPI_DSI0_BASE              MIPI_DSI_BASE
@@ -169,17 +152,15 @@
 #define DSI0_PLL_BASE               (0x1A98300)
 #define DSI1_PLL_BASE               DSI0_PLL_BASE
 #define REG_DSI(off)                (MIPI_DSI_BASE + 0x04 + (off))
+
 #define MDP_BASE                    (0x1A00000)
 #define REG_MDP(off)                (MDP_BASE + (off))
+
 #define MDP_HW_REV                              REG_MDP(0x1000)
 #define MDP_VP_0_VIG_0_BASE                     REG_MDP(0x5000)
-#define MDP_VP_0_VIG_1_BASE                     REG_MDP(0x7000)
 #define MDP_VP_0_RGB_0_BASE                     REG_MDP(0x15000)
-#define MDP_VP_0_RGB_1_BASE                     REG_MDP(0x17000)
 #define MDP_VP_0_DMA_0_BASE                     REG_MDP(0x25000)
-#define MDP_VP_0_DMA_1_BASE                     REG_MDP(0x27000)
 #define MDP_VP_0_MIXER_0_BASE                   REG_MDP(0x45000)
-#define MDP_VP_0_MIXER_1_BASE                   REG_MDP(0x46000)
 #define MDP_DISP_INTF_SEL                       REG_MDP(0x1004)
 #define MDP_VIDEO_INTF_UNDERFLOW_CTL            REG_MDP(0x12E0)
 #define MDP_UPPER_NEW_ROI_PRIOR_RO_START        REG_MDP(0x11EC)
@@ -242,7 +223,6 @@
 #define COMMAND_MODE_MDP_STREAM1_TOTAL  0x064
 #define ERR_INT_MASK0               0x10C
 
-#define LANE_CTL                    0x0AC
 #define LANE_SWAP_CTL               0x0B0
 #define TIMING_CTL                  0x0C4
 
@@ -266,5 +246,4 @@
 #define HS_TIMER_CTRL               0x0BC
 
 #define TCSR_TZ_WONCE               0x193D000
-#define TCSR_BOOT_MISC_DETECT	    0x193D100
 #endif

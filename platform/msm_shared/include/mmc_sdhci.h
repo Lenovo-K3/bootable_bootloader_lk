@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -86,25 +86,19 @@
 
 /* EXT_CSD */
 /* Offsets in the ext csd */
-#define MMC_EXT_CSD_RST_N_FUNC                    162
 #define MMC_EXT_MMC_BUS_WIDTH                     183
 #define MMC_EXT_MMC_HS_TIMING                     185
-#define MMC_EXT_CSD_REV                           192
 #define MMC_DEVICE_TYPE                           196
-#define MMC_EXT_MMC_DRV_STRENGTH                  197
 #define MMC_EXT_HC_WP_GRP_SIZE                    221
 #define MMC_SEC_COUNT4                            215
 #define MMC_SEC_COUNT3                            214
 #define MMC_SEC_COUNT2                            213
 #define MMC_SEC_COUNT1                            212
 #define MMC_PART_CONFIG                           179
-#define MMC_EXT_CSD_EN_RPMB_REL_WR                166 //emmc 5.1 and above
 #define MMC_ERASE_GRP_DEF                         175
 #define MMC_USR_WP                                171
 #define MMC_ERASE_TIMEOUT_MULT                    223
 #define MMC_HC_ERASE_GRP_SIZE                     224
-#define MMC_PARTITION_CONFIG                      179
-#define MMC_EXT_CSD_EN_RPMB_REL_WR                166 //emmc 5.1 and above
 
 /* Values for ext csd fields */
 #define MMC_HS_TIMING                             0x1
@@ -119,14 +113,6 @@
 #define MMC_SEC_COUNT3_SHIFT                      16
 #define MMC_SEC_COUNT2_SHIFT                      8
 #define MMC_HC_ERASE_MULT                         (512 * 1024)
-#define RST_N_FUNC_ENABLE                         BIT(0)
-
-/* RPMB Related */
-#define RPMB_PART_MIN_SIZE                        (128 * 2014)
-#define RPMB_SIZE_MULT                            168
-#define REL_WR_SEC_C                              222
-#define PARTITION_ACCESS_MASK                     0x7
-#define MAX_RPMB_CMDS                             0x3
 
 /* Command related */
 #define MMC_MAX_COMMAND_RETRY                     1000
@@ -215,7 +201,7 @@
     ({                                                    \
      uint32_t indx = (start) / (size_of);                 \
      uint32_t offset = (start) % (size_of);               \
-     unsigned long long mask = (((len)<(size_of))? 1ULL<<(len):0) - 1; \
+     uint32_t mask = (((len)<(size_of))? 1<<(len):0) - 1; \
      uint32_t unpck = array[indx] >> offset;              \
      uint32_t indx2 = ((start) + (len) - 1) / (size_of);  \
      if(indx2 > indx)                                     \
@@ -236,12 +222,6 @@
 
 #define MMC_CARD_MMC(card) ((card->type == MMC_TYPE_STD_MMC) || \
 							(card->type == MMC_TYPE_MMCHC))
-
-enum part_access_type
-{
-	PART_ACCESS_DEFAULT = 0x0,
-	PART_ACCESS_RPMB = 0x3,
-};
 
 /* CSD Register.
  * Note: not all the fields have been defined here
@@ -302,15 +282,12 @@ struct mmc_card {
 	uint32_t rca;            /* Relative addres of the card*/
 	uint32_t ocr;            /* Operating range of the card*/
 	uint32_t block_size;     /* Block size for the card */
-	uint32_t wp_grp_size;    /* WP group size for the card */
 	uint64_t capacity;       /* card capacity */
 	uint32_t type;           /* Type of the card */
 	uint32_t status;         /* Card status */
 	uint8_t *ext_csd;        /* Ext CSD for the card info */
 	uint32_t raw_csd[4];     /* Raw CSD for the card */
 	uint32_t raw_scr[2];     /* SCR for SD card */
-	uint32_t rpmb_size;      /* Size of rpmb partition */
-	uint32_t rel_wr_count;   /* Reliable write count */
 	struct mmc_cid cid;      /* CID structure */
 	struct mmc_csd csd;      /* CSD structure */
 	struct mmc_sd_scr scr;   /* SCR structure */
@@ -326,7 +303,6 @@ struct mmc_config_data {
 	uint16_t bus_width;    /* Bus width used */
 	uint32_t max_clk_rate; /* Max clock rate supported */
 	uint8_t hs400_support; /* SDHC HS400 mode supported or not */
-	uint8_t use_io_switch; /* IO pad switch flag for shared sdc controller */
 };
 
 /* mmc device structure */
@@ -353,8 +329,4 @@ uint32_t mmc_set_clr_power_on_wp_user(struct mmc_device *dev, uint32_t addr, uin
 uint32_t mmc_get_wp_status(struct mmc_device *dev, uint32_t addr, uint8_t *wp_status);
 /* API: Put the mmc card in sleep mode */
 void mmc_put_card_to_sleep(struct mmc_device *dev);
-/* API: Change the driver type of the card */
-bool mmc_set_drv_type(struct sdhci_host *host, struct mmc_card *card, uint8_t drv_type);
-/* API: Send the read & write command sequence to rpmb */
-uint32_t mmc_sdhci_rpmb_send(struct mmc_device *dev, struct mmc_command *cmd);
 #endif

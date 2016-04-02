@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2014, The Linux Foundation. All rights reserved.
 
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -304,7 +304,7 @@ static unsigned int mmc_boot_read_gpt(uint32_t block_size)
 				"GPT: Could not read backup gpt from mmc\n");
 			goto end;
 		}
-		parse_secondary_gpt = 1;
+
 		ret = partition_parse_gpt_header(data, &first_usable_lba,
 						 &partition_entry_size,
 						 &header_size,
@@ -314,7 +314,6 @@ static unsigned int mmc_boot_read_gpt(uint32_t block_size)
 				"GPT: Primary and backup signatures invalid\n");
 			goto end;
 		}
-		parse_secondary_gpt = 0;
 	}
 	partition_0 = GET_LLWORD_FROM_BYTE(&data[PARTITION_ENTRIES_OFFSET]);
 	/* Read GPT Entries */
@@ -830,7 +829,11 @@ mbr_fill_name(struct partition_entry *partition_ent, unsigned int type)
 		memcpy(partition_ent->name, "tz", 2);
 		break;
 	case MBR_ABOOT_TYPE:
+#if PLATFORM_MSM7X27A
+		memcpy(partition_ent->name, "FOTA", 4);
+#else
 		memcpy(partition_ent->name, "aboot", 5);
+#endif
 		break;
 	case MBR_BOOT_TYPE:
 		memcpy(partition_ent->name, "boot", 4);
@@ -877,8 +880,10 @@ int partition_get_index(const char *name)
 		return INVALID_PTN;
 	}
 	for (n = 0; n < partition_count; n++) {
-		if ((input_string_length == strlen((const char *)&partition_entries[n].name))
-			&& !memcmp(name, &partition_entries[n].name, input_string_length)) {
+		if (!memcmp
+		    (name, &partition_entries[n].name, input_string_length)
+		    && input_string_length ==
+		    strlen((const char *)&partition_entries[n].name)) {
 			return n;
 		}
 	}
@@ -911,33 +916,6 @@ unsigned long long partition_get_offset(int index)
 	else {
 		return partition_entries[index].first_lba * block_size;
 	}
-}
-
-struct partition_info partition_get_info(const char *name)
-{
-	struct partition_info info = {0};
-
-	int index = INVALID_PTN;
-
-	if(!name)
-	{
-		dprintf(CRITICAL, "Invalid partition name passed\n");
-		goto out;
-	}
-
-	index = partition_get_index(name);
-
-	if (index != INVALID_PTN)
-	{
-		info.offset = partition_get_offset(index);
-		info.size   = partition_get_size(index);
-	}
-	else
-	{
-		dprintf(CRITICAL, "Error unable to find partition : [%s]\n", name);
-	}
-out:
-	return info;
 }
 
 uint8_t partition_get_lun(int index)
@@ -981,7 +959,7 @@ mbr_partition_get_type(unsigned size, unsigned char *partition,
 {
 	unsigned int type_offset = TABLE_ENTRY_0 + OFFSET_TYPE;
 
-	if (size < (type_offset + sizeof (*partition_type))) {
+	if (size < type_offset) {
 		goto end;
 	}
 
@@ -1043,6 +1021,8 @@ partition_parse_gpt_header(unsigned char *buffer,
 	uint32_t crc_val_org = 0;
 	uint32_t crc_val = 0;
 	uint32_t ret = 0;
+	uint32_t partitions_for_block = 0;
+	uint32_t blocks_to_read = 0;
 	unsigned char *new_buffer = NULL;
 	unsigned long long last_usable_lba = 0;
 	unsigned long long partition_0 = 0;
@@ -1069,11 +1049,11 @@ partition_parse_gpt_header(unsigned char *buffer,
 	}
 
 	crc_val_org = GET_LWORD_FROM_BYTE(&buffer[HEADER_CRC_OFFSET]);
-	crc_val = 0;
 	/*Write CRC to 0 before we calculate the crc of the GPT header*/
+	crc_val = 0;
 	PUT_LONG(&buffer[HEADER_CRC_OFFSET], crc_val);
 
-	crc_val  = calculate_crc32(buffer, *header_size);
+	crc_val  = crc32(~0L,buffer, *header_size) ^ (~0L);
 	if (crc_val != crc_val_org) {
 		dprintf(CRITICAL,"Header crc mismatch crc_val = %u with crc_val_org = %u\n", crc_val,crc_val_org);
 		return 1;
@@ -1120,7 +1100,14 @@ partition_parse_gpt_header(unsigned char *buffer,
 		return 1;
 	}
 
-	new_buffer = (uint8_t *)memalign(CACHE_LINE, ROUNDUP((*max_partition_count) * (*partition_entry_size), CACHE_LINE));
+	partitions_for_block = block_size / (*partition_entry_size);
+
+	blocks_to_read = (*max_partition_count)/ partitions_for_block;
+	if ((*max_partition_count) % partitions_for_block) {
+		blocks_to_read += 1;
+	}
+
+	new_buffer = (uint8_t *)memalign(CACHE_LINE, ROUNDUP((blocks_to_read * block_size),CACHE_LINE));
 
 	if (!new_buffer)
 	{
@@ -1128,14 +1115,7 @@ partition_parse_gpt_header(unsigned char *buffer,
 		return 1;
 	}
 
-	if (flashing_gpt) {
-		if (parse_secondary_gpt) {
-			memcpy(new_buffer, buffer - MIN_PARTITION_ARRAY_SIZE, (*max_partition_count) * (*partition_entry_size));
-		}
-		else
-			memcpy(new_buffer, buffer + block_size, (*max_partition_count) * (*partition_entry_size));
-	}
-	else {
+	if (!flashing_gpt) {
 		partition_0 = GET_LLWORD_FROM_BYTE(&buffer[PARTITION_ENTRIES_OFFSET]);
 		/*start LBA should always be 2 in primary GPT*/
 		if(partition_0 != 0x2) {
@@ -1144,21 +1124,20 @@ partition_parse_gpt_header(unsigned char *buffer,
 
 		}
 		/*read the partition entries to new_buffer*/
-		ret = mmc_read((partition_0) * (block_size), (unsigned int *)new_buffer, (*max_partition_count) * (*partition_entry_size));
+		ret = mmc_read((partition_0) * (block_size), (unsigned int *)new_buffer, (blocks_to_read * block_size));
 		if (ret)
 		{
 			dprintf(CRITICAL, "GPT: Could not read primary gpt from mmc\n");
 			goto fail;
 		}
-	}
-	crc_val_org = GET_LWORD_FROM_BYTE(&buffer[PARTITION_CRC_OFFSET]);
+		crc_val_org = GET_LWORD_FROM_BYTE(&buffer[PARTITION_CRC_OFFSET]);
 
-	crc_val  = calculate_crc32(new_buffer,((*max_partition_count) * (*partition_entry_size)));
-	if (crc_val != crc_val_org) {
-		dprintf(CRITICAL,"Partition entires crc mismatch crc_val= %u with crc_val_org= %u\n",crc_val,crc_val_org);
-		ret = 1;
+		crc_val  = crc32(~0L,new_buffer, ((*max_partition_count) * (*partition_entry_size))) ^ (~0L);
+		if (crc_val != crc_val_org) {
+			dprintf(CRITICAL,"Partition entires crc mismatch crc_val= %u with crc_val_org= %u\n",crc_val,crc_val_org);
+			ret = 1;
+		}
 	}
-
 fail:
 	free(new_buffer);
 	return ret;
@@ -1167,9 +1146,4 @@ fail:
 bool partition_gpt_exists()
 {
 	return (gpt_partitions_exist != 0);
-}
-
-int partition_read_only(int index)
-{
-	 return partition_entries[index].attribute_flag >> PART_ATT_READONLY_OFFSET;
 }

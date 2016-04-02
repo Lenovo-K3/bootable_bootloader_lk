@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -48,8 +48,6 @@
 #include <crypto5_wrapper.h>
 #include <partition_parser.h>
 #include <stdlib.h>
-#include <secapp_loader.h>
-#include <rpmb.h>
 
 #if LONG_PRESS_POWER_ON
 #include <shutdown_detect.h>
@@ -66,6 +64,8 @@
 #if PON_VIB_SUPPORT
 #define VIBRATE_TIME    250
 #endif
+
+#define FASTBOOT_MODE           0x77665500
 
 #define CE1_INSTANCE            1
 #define CE_EE                   1
@@ -134,19 +134,14 @@ void *target_mmc_device()
 }
 
 /* Return 1 if vol_up pressed */
-int target_volume_up()
+static int target_volume_up()
 {
-        static uint8_t first_time = 0;
 	uint8_t status = 0;
 
-        if (!first_time) {
-            gpio_tlmm_config(TLMM_VOL_UP_BTN_GPIO, 0, GPIO_INPUT, GPIO_PULL_UP, GPIO_2MA, GPIO_ENABLE);
+	gpio_tlmm_config(TLMM_VOL_UP_BTN_GPIO, 0, GPIO_INPUT, GPIO_PULL_UP, GPIO_2MA, GPIO_ENABLE);
 
-	    /* Wait for the gpio config to take effect - debounce time */
-	    udelay(10000);
-
-            first_time = 1;
-        }
+	/* Wait for the gpio config to take effect - debounce time */
+	thread_sleep(10);
 
 	/* Get status of GPIO */
 	status = gpio_status(TLMM_VOL_UP_BTN_GPIO);
@@ -173,20 +168,34 @@ static void target_keystatus()
 		keys_post_event(KEY_VOLUMEUP, 1);
 }
 
+#if USER_FORCE_RESET_SUPPORT
+/* Return 1 if it is a force resin triggered by user. */
+uint32_t is_user_force_reset(void)
+{
+	uint8_t poff_reason1 = pm8x41_get_pon_poff_reason1();
+	uint8_t poff_reason2 = pm8x41_get_pon_poff_reason2();
+
+	dprintf(SPEW, "poff_reason1: %d\n", poff_reason1);
+	dprintf(SPEW, "poff_reason2: %d\n", poff_reason2);
+	if (pm8x41_get_is_cold_boot() && (poff_reason1 == KPDPWR_AND_RESIN ||
+							poff_reason2 == STAGE3))
+		return 1;
+	else
+		return 0;
+}
+#endif
+
 void target_init(void)
 {
-        uint32_t base_addr;
+	uint32_t base_addr;
 	uint8_t slot;
-#if VERIFIED_BOOT
-#if !VBOOT_MOTA
-        int ret = 0;
-#endif
-#endif
+
 	dprintf(INFO, "target_init()\n");
 
 	spmi_init(PMIC_ARB_CHANNEL_NUM, PMIC_ARB_OWNER_ID);
 
 	target_keystatus();
+	set_sdc_power_ctrl();
 
 	target_sdc_init();
 	if (partition_read_table())
@@ -206,45 +215,6 @@ void target_init(void)
 
 	if (target_use_signed_kernel())
 		target_crypto_init_params();
-
-#if VERIFIED_BOOT
-#if !VBOOT_MOTA
-        clock_ce_enable(CE1_INSTANCE);
-
-        /* Initialize Qseecom */
-        ret = qseecom_init();
-
-        if (ret < 0)
-        {
-                dprintf(CRITICAL, "Failed to initialize qseecom, error: %d\n", ret);
-                ASSERT(0);
-        }
-
-        /* Start Qseecom */
-        ret = qseecom_tz_init();
-
-        if (ret < 0)
-        {
-                dprintf(CRITICAL, "Failed to start qseecom, error: %d\n", ret);
-                ASSERT(0);
-        }
-
-        if (rpmb_init() < 0)
-        {
-                dprintf(CRITICAL, "RPMB init failed\n");
-                ASSERT(0);
-        }
-
-        /*
-         * Load the sec app for first time
-         */
-        if (load_sec_app() < 0)
-        {
-                dprintf(CRITICAL, "Failed to load App for verified\n");
-                ASSERT(0);
-        }
-#endif
-#endif
 }
 
 void target_serialno(unsigned char *buf)
@@ -259,6 +229,94 @@ void target_serialno(unsigned char *buf)
 unsigned board_machtype(void)
 {
 	return LINUX_MACHTYPE_UNKNOWN;
+}
+
+unsigned check_reboot_mode(void)
+{
+	uint32_t restart_reason = 0;
+
+	/* Read reboot reason and scrub it */
+	restart_reason = readl(RESTART_REASON_ADDR);
+	writel(0x00, RESTART_REASON_ADDR);
+
+	return restart_reason;
+}
+
+static int scm_dload_mode(int mode)
+{
+	int ret = 0;
+	uint32_t dload_type;
+
+	dprintf(INFO, "DLOAD mode: %d\n", mode);
+	if (mode == NORMAL_DLOAD)
+		dload_type = SCM_DLOAD_MODE;
+	else if(mode == EMERGENCY_DLOAD)
+		dload_type = SCM_EDLOAD_MODE;
+	else
+		dload_type = 0;
+
+	ret = scm_call_atomic2(SCM_SVC_BOOT, SCM_DLOAD_CMD, dload_type, 0);
+	if (ret)
+		dprintf(CRITICAL, "Failed to write to boot misc: %d\n", ret);
+
+	ret = scm_call_atomic2(SCM_SVC_BOOT, WDOG_DEBUG_DISABLE, 1, 0);
+	if (ret)
+		dprintf(CRITICAL, "Failed to disable the wdog debug \n");
+
+	return ret;
+}
+/* Configure PMIC and Drop PS_HOLD for shutdown */
+void shutdown_device()
+{
+	dprintf(CRITICAL, "Going down for shutdown.\n");
+
+	/* Configure PMIC for shutdown */
+	pm8x41_reset_configure(PON_PSHOLD_SHUTDOWN);
+
+	/* Drop PS_HOLD for MSM */
+	writel(0x00, MPM2_MPM_PS_HOLD);
+
+	mdelay(5000);
+
+	dprintf(CRITICAL, "shutdown failed\n");
+
+	ASSERT(0);
+}
+
+void reboot_device(unsigned reboot_reason)
+{
+	uint8_t reset_type = 0;
+	uint32_t ret = 0;
+	uint32_t scm_reset = 0;
+
+	/* Need to clear the SW_RESET_ENTRY register and
+	 * write to the BOOT_MISC_REG for known reset cases
+	 */
+	if(reboot_reason != DLOAD)
+		scm_dload_mode(NORMAL_MODE);
+
+	writel(reboot_reason, RESTART_REASON_ADDR);
+
+	/* For Reboot-bootloader and Dload cases do a warm reset
+	 * For Reboot cases do a hard reset
+	 */
+	if((reboot_reason == FASTBOOT_MODE) || (reboot_reason == DLOAD))
+		reset_type = PON_PSHOLD_WARM_RESET;
+	else
+		reset_type = PON_PSHOLD_HARD_RESET;
+
+	pm8x41_reset_configure(reset_type);
+
+	ret = scm_halt_pmic_arbiter();
+	if (ret)
+		dprintf(CRITICAL , "Failed to halt pmic arbiter: %d\n", ret);
+
+	/* Drop PS_HOLD for MSM */
+	writel(0x00, MPM2_MPM_PS_HOLD);
+
+	mdelay(5000);
+
+	dprintf(CRITICAL, "Rebooting failed\n");
 }
 
 /* Detect the target type */
@@ -285,15 +343,11 @@ void target_baseband_detect(struct board_data *board)
 	case MSM8636:
 	case MSM8936:
 	case MSM8239:
-	case MSM8929:
-	case MSM8629:
-	case MSM8229:
 		board->baseband = BASEBAND_MSM;
 	break;
 	case APQ8016:
 	case APQ8039:
 	case APQ8036:
-	case APQ8029:
 		board->baseband = BASEBAND_APQ;
 	break;
 	default:
@@ -319,7 +373,7 @@ static void set_sdc_power_ctrl()
 	{
 		{ SDC1_CLK_HDRV_CTL_OFF,  TLMM_CUR_VAL_16MA, TLMM_HDRV_MASK },
 		{ SDC1_CMD_HDRV_CTL_OFF,  TLMM_CUR_VAL_10MA, TLMM_HDRV_MASK },
-		{ SDC1_DATA_HDRV_CTL_OFF, TLMM_CUR_VAL_10MA, TLMM_HDRV_MASK },
+		{ SDC1_DATA_HDRV_CTL_OFF, TLMM_CUR_VAL_6MA, TLMM_HDRV_MASK },
 	};
 
 	/* Pull configs for sdc pins */
@@ -359,7 +413,6 @@ uint8_t target_panel_auto_detect_enabled()
 
 	switch(board_hardware_id()) {
 	case HW_PLATFORM_SURF:
-	case HW_PLATFORM_MTP:
 		ret = 1;
 		break;
 	default:
@@ -379,7 +432,6 @@ int target_cont_splash_screen()
 		case HW_PLATFORM_MTP:
 		case HW_PLATFORM_SURF:
 		case HW_PLATFORM_QRD:
-		case HW_PLATFORM_SBC:
 			splash_screen = 1;
 			break;
 		default:
@@ -410,7 +462,7 @@ unsigned target_pause_for_battery_charge(void)
 	if (is_cold_boot &&
 			(!(pon_reason & HARD_RST)) &&
 			(!(pon_reason & KPDPWR_N)) &&
-			((pon_reason & USB_CHG) || (pon_reason & DC_CHG) || (pon_reason & CBLPWR_N)))
+			((pon_reason & USB_CHG) || (pon_reason & DC_CHG)))
 		return 1;
 	else
 		return 0;
@@ -438,25 +490,6 @@ void target_uninit(void)
 
 	if (target_is_ssd_enabled())
 		clock_ce_disable(CE1_INSTANCE);
-#if VERIFIED_BOOT
-#if !VBOOT_MOTA
-        if (is_sec_app_loaded())
-        {
-                if (send_milestone_call_to_tz() < 0)
-                {
-                        dprintf(CRITICAL, "Failed to unload App for rpmb\n");
-                        ASSERT(0);
-                }
-        }
-
-        if (rpmb_uninit() < 0)
-        {
-                dprintf(CRITICAL, "RPMB uninit failed\n");
-                ASSERT(0);
-        }
-        clock_ce_disable(CE1_INSTANCE);
-#endif
-#endif
 }
 
 /* Do any target specific intialization needed before entering fastboot mode */
@@ -562,9 +595,4 @@ void target_crypto_init_params()
 uint32_t target_get_hlos_subtype()
 {
 	return board_hlos_subtype();
-}
-
-void pmic_reset_configure(uint8_t reset_type)
-{
-	pm8x41_reset_configure(reset_type);
 }

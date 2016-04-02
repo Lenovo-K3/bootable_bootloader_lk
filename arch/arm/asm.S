@@ -1,8 +1,6 @@
 /*
  * Copyright (c) 2008 Travis Geiselbrecht
  *
- * Copyright (c) 2014, The Linux Foundation. All rights reserved.
- *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files
  * (the "Software"), to deal in the Software without restriction,
@@ -51,7 +49,8 @@ FUNCTION(arm_context_switch)
 
 	/* clear any exlusive locks that the old thread holds */
 #if ARM_ISA_ARMV7
-	clrex
+	/* can clear it directly */
+	.word	0xf57ff01f // clrex
 #elif ARM_ISA_ARMV6
 	/* have to do a fake strex to clear it */
 	ldr		r0, =strex_spot

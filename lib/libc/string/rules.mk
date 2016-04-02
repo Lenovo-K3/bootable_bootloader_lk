@@ -8,7 +8,6 @@ C_STRING_OPS := \
 	memcpy \
 	memmove \
 	memset \
-        memscpy \
 	strcat \
 	strchr \
 	strcmp \

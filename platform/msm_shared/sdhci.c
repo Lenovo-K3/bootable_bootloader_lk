@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -38,57 +38,6 @@
 #include <debug.h>
 #include <sdhci.h>
 #include <sdhci_msm.h>
-
-static void sdhci_dumpregs(struct sdhci_host *host)
-{
-	DBG("****************** SDHC REG DUMP START ********************\n");
-
-	DBG("Version:      0x%08x\n", REG_READ32(host, SDHCI_ARG2_REG));
-	DBG("Arg2:         0x%08x\t Blk Cnt:      0x%08x\n",
-							REG_READ32(host, SDHCI_ARG2_REG),
-							REG_READ16(host, SDHCI_BLK_CNT_REG));
-	DBG("Arg1:         0x%08x\t Blk Sz :      0x%08x\n",
-							REG_READ32(host, SDHCI_ARGUMENT_REG),
-							REG_READ16(host, SDHCI_BLKSZ_REG));
-	DBG("Command:      0x%08x\t Trans mode:   0x%08x\n",
-							REG_READ16(host, SDHCI_CMD_REG),
-							REG_READ16(host, SDHCI_TRANS_MODE_REG));
-	DBG("Resp0:        0x%08x\t Resp1:        0x%08x\n",
-							REG_READ32(host, SDHCI_RESP_REG),
-							REG_READ32(host, SDHCI_RESP_REG + 0x4));
-	DBG("Resp2:        0x%08x\t Resp3:        0x%08x\n",
-							REG_READ32(host, SDHCI_RESP_REG + 0x8),
-							REG_READ32(host, SDHCI_RESP_REG + 0xC));
-	DBG("Prsnt State:  0x%08x\t Host Ctrl1:   0x%08x\n",
-							REG_READ32(host, SDHCI_PRESENT_STATE_REG),
-							REG_READ8(host, SDHCI_HOST_CTRL1_REG));
-	DBG("Timeout ctrl: 0x%08x\t Power Ctrl:   0x%08x\n",
-							REG_READ8(host, SDHCI_TIMEOUT_REG),
-							REG_READ8(host, SDHCI_PWR_CTRL_REG));
-	DBG("Error stat:   0x%08x\t Int Status:   0x%08x\n",
-							REG_READ16(host, SDHCI_ERR_INT_STS_REG),
-							REG_READ16(host, SDHCI_NRML_INT_STS_REG));
-	DBG("Host Ctrl2:   0x%08x\t Clock ctrl:   0x%08x\n",
-							REG_READ16(host, SDHCI_HOST_CTRL2_REG),
-							REG_READ16(host, SDHCI_CLK_CTRL_REG));
-	DBG("Caps1:        0x%08x\t Caps2:        0x%08x\n",
-							REG_READ32(host, SDHCI_CAPS_REG1),
-							REG_READ32(host, SDHCI_CAPS_REG1));
-	DBG("Adma Err:     0x%08x\t Auto Cmd err: 0x%08x\n",
-							REG_READ8(host, SDHCI_ADM_ERR_REG),
-							REG_READ16(host, SDHCI_AUTO_CMD_ERR));
-	DBG("Adma addr1:   0x%08x\t Adma addr2:   0x%08x\n",
-							REG_READ32(host, SDHCI_ADM_ADDR_REG),
-							REG_READ32(host, SDHCI_ADM_ADDR_REG + 0x4));
-
-	DBG("****************** SDHC REG DUMP END ********************\n");
-
-	DBG("************* SDHC VENDOR REG DUMPS START ***************\n");
-	DBG("SDCC_DLL_CONFIG_REG:       0x%08x\n", REG_READ32(host, SDCC_DLL_CONFIG_REG));
-	DBG("SDCC_VENDOR_SPECIFIC_FUNC: 0x%08x\n", REG_READ32(host, SDCC_VENDOR_SPECIFIC_FUNC));
-	DBG("SDCC_REG_DLL_STATUS:       0x%08x\n", REG_READ32(host, SDCC_REG_DLL_STATUS));
-	DBG("************* SDHC VENDOR REG DUMPS END   ***************\n");
-}
 
 /*
  * Function: sdhci reset
@@ -189,8 +138,6 @@ clk_ctrl:
 
 	host->cur_clk_rate = clk;
 
-	DBG("\n %s: clock_rate: %d clock_div:0x%08x\n", __func__, clk, div);
-
 	return 0;
 }
 
@@ -255,8 +202,6 @@ static void sdhci_set_bus_power_on(struct sdhci_host *host)
 	REG_WRITE8(host, voltage, SDHCI_PWR_CTRL_REG);
 
 	voltage |= SDHCI_BUS_PWR_EN;
-
-	DBG("\n %s: voltage: 0x%02x\n", __func__, voltage);
 
 	REG_WRITE8(host, voltage, SDHCI_PWR_CTRL_REG);
 
@@ -362,8 +307,6 @@ uint8_t sdhci_set_bus_width(struct sdhci_host *host, uint16_t width)
 			return 1;
 	}
 
-	DBG("\n %s: bus width:0x%04x\n", __func__, width);
-
 	REG_WRITE8(host, (reg | width), SDHCI_HOST_CTRL1_REG);
 
 	return 0;
@@ -430,7 +373,7 @@ static uint8_t sdhci_cmd_complete(struct sdhci_host *host, struct mmc_command *c
 	uint8_t i;
 	uint8_t ret = 0;
 	uint8_t need_reset = 0;
-	uint64_t retry = 0;
+	uint32_t retry = 0;
 	uint32_t int_status;
 	uint32_t trans_complete = 0;
 	uint32_t err_status;
@@ -438,31 +381,10 @@ static uint8_t sdhci_cmd_complete(struct sdhci_host *host, struct mmc_command *c
 
 	do {
 		int_status = REG_READ16(host, SDHCI_NRML_INT_STS_REG);
+		int_status &= SDHCI_INT_STS_CMD_COMPLETE;
 
-		if (int_status  & SDHCI_INT_STS_CMD_COMPLETE)
+		if (int_status == SDHCI_INT_STS_CMD_COMPLETE)
 			break;
-		/*
-		* Some controllers set the data timout first on issuing an erase & take time
-		* to set data complete interrupt. We need to wait hoping the controller would
-		* set data complete
-		*/
-		else if (int_status & SDHCI_ERR_INT_STAT_MASK && !host->tuning_in_progress &&
-				!((REG_READ16(host, SDHCI_ERR_INT_STS_REG) & SDHCI_DAT_TIMEOUT_MASK)))
-			goto err;
-
-		/*
-		 * If Tuning is in progress ignore cmd crc, cmd timeout & cmd end bit errors
-		 */
-		if (host->tuning_in_progress)
-		{
-			err_status = REG_READ16(host, SDHCI_ERR_INT_STS_REG);
-			if ((err_status & SDHCI_CMD_CRC_MASK) || (err_status & SDHCI_CMD_END_BIT_MASK)
-				|| err_status & SDHCI_CMD_TIMEOUT_MASK)
-			{
-				sdhci_reset(host, (SOFT_RESET_CMD | SOFT_RESET_DATA));
-				return 0;
-			}
-		}
 
 		retry++;
 		udelay(500);
@@ -504,20 +426,13 @@ static uint8_t sdhci_cmd_complete(struct sdhci_host *host, struct mmc_command *c
 	if (cmd->data_present || cmd->resp_type == SDHCI_CMD_RESP_R1B) {
 		do {
 			int_status = REG_READ16(host, SDHCI_NRML_INT_STS_REG);
+			int_status &= SDHCI_INT_STS_TRANS_COMPLETE;
 
 			if (int_status & SDHCI_INT_STS_TRANS_COMPLETE)
 			{
 				trans_complete = 1;
 				break;
 			}
-			/*
-			 * Some controllers set the data timout first on issuing an erase & take time
-			 * to set data complete interrupt. We need to wait hoping the controller would
-			 * set data complete
-			 */
-			else if (int_status & SDHCI_ERR_INT_STAT_MASK && !host->tuning_in_progress &&
-					!((REG_READ16(host, SDHCI_ERR_INT_STS_REG) & SDHCI_DAT_TIMEOUT_MASK)))
-				goto err;
 
 			/*
 			 * If we are in tuning then we need to wait until Data timeout , Data end
@@ -572,16 +487,15 @@ err:
 		}
 		else if (sdhci_cmd_err_status(host))
 		{
+			dprintf(CRITICAL, "Error: Command completed with errors\n");
 			ret = 1;
-			/* Dump sdhc registers on error */
-			sdhci_dumpregs(host);
 		}
 		/* Reset Command & Dat lines on error */
 		need_reset = 1;
 	}
 
 	/* Reset data & command line */
-	if (need_reset)
+	if (cmd->data_present || need_reset)
 		sdhci_reset(host, (SOFT_RESET_CMD | SOFT_RESET_DATA));
 
 	return ret;
@@ -615,8 +529,7 @@ static struct desc_entry *sdhci_prep_desc_table(void *data, uint32_t len)
 		sg_list[0].tran_att = SDHCI_ADMA_TRANS_VALID | SDHCI_ADMA_TRANS_DATA
 							  | SDHCI_ADMA_TRANS_END;
 
-		sg_len = 1;
-		table_len = sizeof(struct desc_entry);
+		arch_clean_invalidate_cache_range((addr_t)sg_list, sizeof(struct desc_entry));
 	} else {
 		/* Calculate the number of entries in desc table */
 		sg_len = len / SDHCI_ADMA_DESC_LINE_SZ;
@@ -668,12 +581,6 @@ static struct desc_entry *sdhci_prep_desc_table(void *data, uint32_t len)
 		}
 
 	arch_clean_invalidate_cache_range((addr_t)sg_list, table_len);
-
-	for (i = 0; i < sg_len; i++)
-	{
-		DBG("\n %s: sg_list: addr: 0x%08x len: 0x%04x attr: 0x%04x\n", __func__, sg_list[i].addr,
-			(sg_list[i].len ? sg_list[i].len : SDHCI_ADMA_DESC_LINE_SZ), sg_list[i].tran_att);
-	}
 
 	return sg_list;
 }
@@ -742,16 +649,12 @@ static struct desc_entry *sdhci_adma_transfer(struct sdhci_host *host,
  */
 uint32_t sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 {
-	uint32_t ret = 0;
 	uint8_t retry = 0;
 	uint32_t resp_type = 0;
 	uint16_t trans_mode = 0;
 	uint16_t present_state;
 	uint32_t flags;
 	struct desc_entry *sg_list = NULL;
-
-	DBG("\n %s: START: cmd:%04d, arg:0x%08x, resp_type:0x%04x, data_present:%d\n",
-				__func__, cmd->cmd_index, cmd->argument, cmd->resp_type, cmd->data_present);
 
 	if (cmd->data_present)
 		ASSERT(cmd->data.data_ptr);
@@ -822,23 +725,6 @@ uint32_t sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 	flags |= (cmd->data_present << SDHCI_CMD_DATA_PRESENT_BIT);
 	flags |= (cmd->cmd_type << SDHCI_CMD_CMD_TYPE_BIT);
 
-	/* Enable Command CRC & Index check for commands with response
-	 * R1, R6, R7 & R1B. Also only CRC check for R2 response
-	 */
-	switch(cmd->resp_type) {
-		case SDHCI_CMD_RESP_R1:
-		case SDHCI_CMD_RESP_R6:
-		case SDHCI_CMD_RESP_R7:
-		case SDHCI_CMD_RESP_R1B:
-			flags |= (1 << SDHCI_CMD_CRC_CHECK_BIT) | (1 << SDHCI_CMD_IDX_CHECK_BIT);
-			break;
-		case SDHCI_CMD_RESP_R2:
-			flags |= (1 << SDHCI_CMD_CRC_CHECK_BIT);
-			break;
-		default:
-			break;
-	};
-
 	/* Set the timeout value */
 	REG_WRITE8(host, SDHCI_CMD_TIMEOUT, SDHCI_TIMEOUT_REG);
 
@@ -868,16 +754,13 @@ uint32_t sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 		/* Enable auto cmd23 or cmd12 for multi block transfer
 		 * based on what command card supports
 		 */
-		if ((cmd->data.num_blocks > 1) && !cmd->rel_write) {
+		if (cmd->data.num_blocks > 1) {
 			if (cmd->cmd23_support) {
 				trans_mode |= SDHCI_TRANS_MULTI | SDHCI_AUTO_CMD23_EN | SDHCI_BLK_CNT_EN;
 				REG_WRITE32(host, cmd->data.num_blocks, SDHCI_ARG2_REG);
 			}
 			else
 				trans_mode |= SDHCI_TRANS_MULTI | SDHCI_AUTO_CMD12_EN | SDHCI_BLK_CNT_EN;
-		}
-		else if ((cmd->data.num_blocks > 1) && cmd->rel_write) {
-			trans_mode |= SDHCI_TRANS_MULTI | SDHCI_BLK_CNT_EN;
 		}
 	}
 
@@ -889,23 +772,17 @@ uint32_t sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 
 	/* Command complete sequence */
 	if (sdhci_cmd_complete(host, cmd))
-	{
-		ret = 1;
-		goto err;
-	}
+		return 1;
 
 	/* Invalidate the cache only for read operations */
 	if (cmd->trans_mode == SDHCI_MMC_READ)
 		arch_invalidate_cache_range((addr_t)cmd->data.data_ptr, (cmd->data.num_blocks * SDHCI_MMC_BLK_SZ));
 
-	DBG("\n %s: END: cmd:%04d, arg:0x%08x, resp:0x%08x 0x%08x 0x%08x 0x%08x\n",
-				__func__, cmd->cmd_index, cmd->argument, cmd->resp[0], cmd->resp[1], cmd->resp[2], cmd->resp[3]);
-err:
 	/* Free the scatter/gather list */
 	if (sg_list)
 		free(sg_list);
 
-	return ret;
+	return 0;
 }
 
 /*
@@ -923,14 +800,10 @@ err:
 void sdhci_init(struct sdhci_host *host)
 {
 	uint32_t caps[2];
-	uint32_t version;
 
 	/* Read the capabilities register & store the info */
 	caps[0] = REG_READ32(host, SDHCI_CAPS_REG1);
 	caps[1] = REG_READ32(host, SDHCI_CAPS_REG2);
-
-
-	DBG("\n %s: Host capability: cap1:0x%08x, cap2: 0x%08x\n", __func__, caps[0], caps[1]);
 
 	host->caps.base_clk_rate = (caps[0] & SDHCI_CLK_RATE_MASK) >> SDHCI_CLK_RATE_BIT;
 	host->caps.base_clk_rate *= 1000000;
@@ -962,16 +835,6 @@ void sdhci_init(struct sdhci_host *host)
 
 	/* SDR104 mode support */
 	host->caps.sdr104_support = (caps[1] & SDHCI_SDR104_MODE_MASK) ? 1 : 0;
-
-	version = readl(host->msm_host->pwrctl_base + MCI_VERSION);
-
-	host->major = (version & CORE_VERSION_MAJOR_MASK) >> CORE_VERSION_MAJOR_SHIFT;
-	host->minor = (version & CORE_VERSION_MINOR_MASK);
-
-	if (host->major == 0x1 && host->minor < 0x34)
-		host->use_cdclp533 = true;
-	else
-		host->use_cdclp533 = false;
 
 	/* Set bus power on */
 	sdhci_set_bus_power_on(host);

@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -37,16 +37,6 @@
 #include <smem.h>
 
 #define TOTAL_RESET_GPIO_CTRL 5
-
-/*---------------------------------------------------------------------------*/
-/* panel type
-/*---------------------------------------------------------------------------*/
-enum {
-	PANEL_TYPE_UNKNOWN,
-	PANEL_TYPE_DSI,
-	PANEL_TYPE_EDP,
-	PANEL_TYPE_HDMI
-};
 
 /*---------------------------------------------------------------------------*/
 /* Structure definition                                                      */
@@ -148,7 +138,6 @@ typedef struct lane_configuration {
 	uint8_t lane1_state;
 	uint8_t lane2_state;
 	uint8_t lane3_state;
-	uint8_t force_clk_lane_hs;
 };
 
 typedef struct panel_timing {
@@ -177,26 +166,6 @@ typedef struct backlight {
 	uint16_t bl_step;
 	uint16_t bl_pmic_controltype;
 	char     *bl_pmic_model;
-};
-
-typedef struct fb_compression {
-	uint32_t enabled;
-	uint32_t comp_ratio;
-	uint32_t comp_mode;
-	uint32_t qerr_enable;
-	uint32_t cd_bias;
-	uint32_t pat_enable;
-	uint32_t vlc_enable;
-	uint32_t bflc_enable;
-
-	uint32_t line_x_budget;
-	uint32_t block_x_budget;
-	uint32_t block_budget;
-
-	uint32_t lossless_mode_thd;
-	uint32_t lossy_mode_thd;
-	uint32_t lossy_rgb_thd;
-	uint32_t lossy_mode_idx;
 };
 
 #endif /*_PANEL_H_ */

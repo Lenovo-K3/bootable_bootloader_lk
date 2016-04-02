@@ -211,7 +211,7 @@ dwc_dev_t* dwc_init(dwc_config_t *config)
 	dwc_dev_t *dev = (dwc_dev_t*) malloc(sizeof(dwc_dev_t));
 	ASSERT(dev);
 
-	memset(dev, 0, sizeof(dwc_dev_t));
+	memset(dev, 0, sizeof(dev));
 
 	/* save config info */
 	dev->base                = config->base;
@@ -456,7 +456,6 @@ void dwc_event_device_reset(dwc_dev_t *dev)
 	for (uint8_t ep_index = 2; ep_index < DWC_MAX_NUM_OF_EP; ep_index++)
 	{
 		dwc_ep_t *ep = &dev->ep[ep_index];
-		ASSERT(ep != NULL);
 
 		DBG("\n RESET on EP = %d while state = %s", ep_index,
 													ep_state_lookup[ep->state]);
@@ -490,9 +489,8 @@ void dwc_event_handler_ep_ctrl(dwc_dev_t *dev, uint32_t *event)
 	uint8_t                 event_status = DWC_EVENT_EP_EVENT_STATUS(*event);
 	uint16_t                event_param  = DWC_EVENT_EP_EVENT_PARAM(*event);
 
-	ASSERT(DWC_EP_PHY_TO_INDEX(ep_phy_num) < DWC_MAX_NUM_OF_EP);
 	dwc_ep_t *ep = &dev->ep[DWC_EP_PHY_TO_INDEX(ep_phy_num)];
-	ASSERT(ep != NULL);
+#endif
 
 	DBG("\n\n\n++EP_EVENT: %s in ctrl_state: %s ep_state[%d]: %s",
 		event_lookup_ep[event_id],
@@ -503,7 +501,7 @@ void dwc_event_handler_ep_ctrl(dwc_dev_t *dev, uint32_t *event)
 	DBG("\n ep_phy_num = %d param = 0x%x status = 0x%x", ep_phy_num,
 														 event_param,
 														 event_status);
-#endif
+
 
 	/* call the handler for the current control state */
 	switch (dev->ctrl_state)
@@ -551,13 +549,11 @@ void dwc_event_handler_ep_ctrl(dwc_dev_t *dev, uint32_t *event)
 		ASSERT(0);
 	}
 
-#ifdef DEBUG_USB
 	DBG("\n--EP_EVENT: %s in ctrl_state: %s ep_state[%d]: %s",
 		event_lookup_ep[event_id],
 		dev_ctrl_state_lookup[dev->ctrl_state],
 		ep_phy_num,
 		ep_state_lookup[ep->state]);
-#endif
 }
 
 /* check status of transfer:
@@ -574,11 +570,7 @@ uint8_t dwc_event_check_trb_status(dwc_dev_t *dev,
 	uint8_t status        = 0;
 	uint8_t trb_updated   = 0;
 	uint8_t event_status  = DWC_EVENT_EP_EVENT_STATUS(*event);
-
-	ASSERT(index < DWC_MAX_NUM_OF_EP);
 	dwc_ep_t *ep          = &dev->ep[index];
-	ASSERT(ep != NULL);
-
 	dwc_trb_t *trb        = ep->trb;
 	uint32_t num_of_trb   = ep->trb_queued;
 	uint32_t bytes_remaining = 0;
@@ -646,9 +638,7 @@ static void dwc_event_handler_ep_ctrl_state_setup(dwc_dev_t *dev,
 	dwc_event_ep_event_id_t event_id   = DWC_EVENT_EP_EVENT_ID(*event);
 	uint8_t event_status               = DWC_EVENT_EP_EVENT_STATUS(*event);
 
-	ASSERT(DWC_EP_PHY_TO_INDEX(ep_phy_num) < DWC_MAX_NUM_OF_EP);
 	dwc_ep_t *ep = &dev->ep[DWC_EP_PHY_TO_INDEX(ep_phy_num)];
-	ASSERT(ep != NULL);
 
 	switch (event_id)
 	{
@@ -745,9 +735,10 @@ static void dwc_event_handler_ep_ctrl_state_setup(dwc_dev_t *dev,
 	case DWC_EVENT_EP_XFER_IN_PROGRESS:
 	default:
 		/* event is not expected in this state */
-		ERR("\n Ignore the unexpected EP event: %s\n", event_lookup_ep[event_id]);
+		ERR("\n Unexpected EP event.");
 		dwc_print_ep_event_details(dev, event);
 		dwc_print_current_state(dev);
+		ASSERT(0);
 	}
 }
 
@@ -761,9 +752,7 @@ static void dwc_event_handler_ep_ctrl_state_data(dwc_dev_t *dev,
 	uint8_t event_ctrl_stage           = DWC_EVENT_EP_EVENT_CTRL_STAGE(*event);
 	uint8_t event_status               = DWC_EVENT_EP_EVENT_STATUS(*event);
 
-	ASSERT(DWC_EP_PHY_TO_INDEX(ep_phy_num) < DWC_MAX_NUM_OF_EP);
 	dwc_ep_t *ep = &dev->ep[DWC_EP_PHY_TO_INDEX(ep_phy_num)];
-	ASSERT(ep != NULL);
 
 	switch (event_id)
 	{
@@ -861,9 +850,10 @@ static void dwc_event_handler_ep_ctrl_state_data(dwc_dev_t *dev,
 	case DWC_EVENT_EP_XFER_IN_PROGRESS:
 	default:
 		 /* event is not expected in this state */
-		ERR("\n Ignore the unexpected EP event: %s\n", event_lookup_ep[event_id]);
+		ERR("\n Unexpected EP event.");
 		dwc_print_ep_event_details(dev, event);
 		dwc_print_current_state(dev);
+		ASSERT(0);
 	}
 }
 
@@ -922,9 +912,10 @@ static void dwc_event_handler_ep_ctrl_state_wait_for_host_2(dwc_dev_t *dev,
 	case DWC_EVENT_EP_XFER_COMPLETE:
 	default:
 		/* event not expected in this state. */
-		ERR("\n Ignore the unexpected EP event: %s\n", event_lookup_ep[event_id]);
+		ERR("\n Unexpected EP event.");
 		dwc_print_ep_event_details(dev, event);
 		dwc_print_current_state(dev);
+		ASSERT(0);
 	}
 }
 
@@ -935,10 +926,6 @@ static void dwc_event_handler_ep_ctrl_state_wait_for_host_3(dwc_dev_t *dev,
 	uint8_t ep_phy_num                 = DWC_EVENT_EP_EVENT_EP_NUM(*event);
 	dwc_event_ep_event_id_t event_id   = DWC_EVENT_EP_EVENT_ID(*event);
 	uint8_t event_ctrl_stage           = DWC_EVENT_EP_EVENT_CTRL_STAGE(*event);
-
-	ASSERT(DWC_EP_PHY_TO_INDEX(ep_phy_num) < DWC_MAX_NUM_OF_EP);
-	dwc_ep_t *ep = &dev->ep[DWC_EP_PHY_TO_INDEX(ep_phy_num)];
-	ASSERT(ep != NULL);
 
 	switch (event_id)
 	{
@@ -952,32 +939,15 @@ static void dwc_event_handler_ep_ctrl_state_wait_for_host_3(dwc_dev_t *dev,
 		{
 			if (event_ctrl_stage == CONTROL_DATA_REQUEST)/* data request */
 			{
-				if (ep->state == EP_STATE_START_TRANSFER ||
-								ep->state == EP_STATE_XFER_IN_PROG) {
-					/*
-					 * special case handling when data stage transfer length
-					 * was exact multiple of max_pkt_size.
-					 * Need to setup a TRB to complete data stage with a zero
-					 * length pkt transfer.
-					 */
-
-					dwc_request_t req;
-
-					req.callback = 0x0;
-					req.context  = 0x0;
-					req.data     = 0x0;
-					req.len      = 0x0;
-					req.trbctl   = TRBCTL_CONTROL_DATA;
-
-					DBG("\n Sending the elp to host as the end of xfer\n");
-					dwc_request_queue(dev, ep_phy_num, &req);
-					dev->ctrl_state = EP_FSM_CTRL_DATA;
-				} else {
-					DBG("\n attempting to start data when setup did not indicate"
-						"data stage. stall...\n\n");
-					dwc_ep_cmd_stall(dev, ep_phy_num);
-					dev->ctrl_state  = EP_FSM_STALL;
-				}
+				/* TODO:
+				 * special case handling when data stage transfer length
+				 * was exact multiple of max_pkt_size.
+				 * Need to setup a TRB to complete data stage with a zero
+				 * length pkt transfer.
+				 * Not implemented currently since all data during enumeration
+				 * is less then max_pkt_size.
+				 */
+				ASSERT(0);
 			}
 			else if (event_ctrl_stage ==  CONTROL_STATUS_REQUEST)/* stat req */
 			{
@@ -1003,9 +973,10 @@ static void dwc_event_handler_ep_ctrl_state_wait_for_host_3(dwc_dev_t *dev,
 	case DWC_EVENT_EP_XFER_COMPLETE:
 	default:
 		/* event is not expected in this state */
-		ERR("\n Ignore the unexpected EP event: %s\n", event_lookup_ep[event_id]);
+		ERR("\n Unexpected EP event.");
 		dwc_print_ep_event_details(dev, event);
 		dwc_print_current_state(dev);
+		ASSERT(0);
 	}
 }
 
@@ -1018,9 +989,7 @@ static void dwc_event_handler_ep_ctrl_state_status_2(dwc_dev_t *dev,
 	dwc_event_ep_event_id_t event_id   = DWC_EVENT_EP_EVENT_ID(*event);
 	uint8_t event_status               = DWC_EVENT_EP_EVENT_STATUS(*event);
 
-	ASSERT(DWC_EP_PHY_TO_INDEX(ep_phy_num) < DWC_MAX_NUM_OF_EP);
 	dwc_ep_t *ep = &dev->ep[DWC_EP_PHY_TO_INDEX(ep_phy_num)];
-	ASSERT(ep != NULL);
 
 	switch (event_id)
 	{
@@ -1078,9 +1047,10 @@ static void dwc_event_handler_ep_ctrl_state_status_2(dwc_dev_t *dev,
 	case DWC_EVENT_EP_XFER_IN_PROGRESS:
 	default:
 		/* event is not expected in this state */
-		ERR("\n Ignore the unexpected EP event: %s\n", event_lookup_ep[event_id]);
+		ERR("\n Unexpected EP event.");
 		dwc_print_ep_event_details(dev, event);
 		dwc_print_current_state(dev);
+		ASSERT(0);
 	}
 }
 
@@ -1092,9 +1062,7 @@ static void dwc_event_handler_ep_ctrl_state_status_3(dwc_dev_t *dev,
 	dwc_event_ep_event_id_t event_id   = DWC_EVENT_EP_EVENT_ID(*event);
 	uint8_t event_status               = DWC_EVENT_EP_EVENT_STATUS(*event);
 
-	ASSERT(DWC_EP_PHY_TO_INDEX(ep_phy_num) < DWC_MAX_NUM_OF_EP);
 	dwc_ep_t *ep = &dev->ep[DWC_EP_PHY_TO_INDEX(ep_phy_num)];
-	ASSERT(ep != NULL);
 
 	switch (event_id)
 	{
@@ -1158,9 +1126,10 @@ static void dwc_event_handler_ep_ctrl_state_status_3(dwc_dev_t *dev,
 	case DWC_EVENT_EP_XFER_IN_PROGRESS:
 	default:
 		/* event is not expected in this state */
-		ERR("\n Ignore the unexpected EP event: %s\n", event_lookup_ep[event_id]);
+		ERR("\n Unexpected EP event.");
 		dwc_print_ep_event_details(dev, event);
 		dwc_print_current_state(dev);
+		ASSERT(0);
 	}
 }
 
@@ -1171,9 +1140,7 @@ static void dwc_event_handler_ep_ctrl_state_stall(dwc_dev_t *dev,
 	uint8_t ep_phy_num                 = DWC_EVENT_EP_EVENT_EP_NUM(*event);
 	dwc_event_ep_event_id_t event_id   = DWC_EVENT_EP_EVENT_ID(*event);
 
-	ASSERT(DWC_EP_PHY_TO_INDEX(ep_phy_num) < DWC_MAX_NUM_OF_EP);
 	dwc_ep_t *ep = &dev->ep[DWC_EP_PHY_TO_INDEX(ep_phy_num)];
-	ASSERT(ep != NULL);
 
 	switch (event_id)
 	{
@@ -1208,8 +1175,10 @@ static void dwc_event_handler_ep_ctrl_state_stall(dwc_dev_t *dev,
 static void dwc_event_handler_ep_bulk_state_inactive(dwc_dev_t *dev,
 													 uint32_t *event)
 {
+#ifdef DEBUG_USB
 	uint8_t ep_phy_num                 = DWC_EVENT_EP_EVENT_EP_NUM(*event);
 	dwc_dep_cmd_id_t cmd               = DWC_EVENT_EP_EVENT_CMD_TYPE(*event);
+#endif
 	dwc_event_ep_event_id_t event_id   = DWC_EVENT_EP_EVENT_ID(*event);
 
 	switch (event_id)
@@ -1232,9 +1201,10 @@ static void dwc_event_handler_ep_bulk_state_inactive(dwc_dev_t *dev,
 	case DWC_EVENT_EP_XFER_COMPLETE:
 	default:
 		/* event is not expected in this state */
-		ERR("\n Ignore the unexpected EP event: %s\n", event_lookup_ep[event_id]);
+		ERR("\n Unexpected EP event.");
 		dwc_print_ep_event_details(dev, event);
 		dwc_print_current_state(dev);
+		ASSERT(0);
 	}
 }
 
@@ -1246,9 +1216,7 @@ static void dwc_event_handler_ep_bulk_state_start_transfer(dwc_dev_t *dev,
 	dwc_event_ep_event_id_t event_id   = DWC_EVENT_EP_EVENT_ID(*event);
 	uint8_t event_status               = DWC_EVENT_EP_EVENT_STATUS(*event);
 
-	ASSERT(DWC_EP_PHY_TO_INDEX(ep_phy_num) < DWC_MAX_NUM_OF_EP);
 	dwc_ep_t *ep = &dev->ep[DWC_EP_PHY_TO_INDEX(ep_phy_num)];
-	ASSERT(ep != NULL);
 
 	switch (event_id)
 	{
@@ -1283,9 +1251,10 @@ static void dwc_event_handler_ep_bulk_state_start_transfer(dwc_dev_t *dev,
 		}
 		break;
 	default:
-		ERR("\n Ignore the unexpected EP event: %s\n", event_lookup_ep[event_id]);
+		ERR("\n Unexpected EP event.");
 		dwc_print_ep_event_details(dev, event);
 		dwc_print_current_state(dev);
+		ASSERT(0);
 	}
 }
 
@@ -1296,9 +1265,7 @@ static void dwc_event_handler_ep_bulk_state_xfer_in_prog(dwc_dev_t *dev,
 	uint8_t ep_phy_num                 = DWC_EVENT_EP_EVENT_EP_NUM(*event);
 	dwc_event_ep_event_id_t event_id   = DWC_EVENT_EP_EVENT_ID(*event);
 
-	ASSERT(DWC_EP_PHY_TO_INDEX(ep_phy_num) < DWC_MAX_NUM_OF_EP);
 	dwc_ep_t *ep = &dev->ep[DWC_EP_PHY_TO_INDEX(ep_phy_num)];
-	ASSERT(ep != NULL);
 
 	switch (event_id)
 	{
@@ -1364,9 +1331,10 @@ static void dwc_event_handler_ep_bulk_state_xfer_in_prog(dwc_dev_t *dev,
 		}
 		break;
 	default:
-		ERR("\n Ignore the unexpected EP event: %s\n", event_lookup_ep[event_id]);
+		ERR("\n Unexpected EP event.");
 		dwc_print_ep_event_details(dev, event);
 		dwc_print_current_state(dev);
+		ASSERT(0);
 	}
 }
 
@@ -1380,11 +1348,9 @@ void dwc_event_handler_ep_bulk(dwc_dev_t *dev, uint32_t *event)
 	uint16_t                event_param  = DWC_EVENT_EP_EVENT_PARAM(*event);
 #endif
 
-	ASSERT(DWC_EP_PHY_TO_INDEX(ep_phy_num) < DWC_MAX_NUM_OF_EP);
-	dwc_ep_t *ep = &dev->ep[DWC_EP_PHY_TO_INDEX(ep_phy_num)];
-	ASSERT(ep != NULL);
 
-#ifdef DEBUG_USB
+	dwc_ep_t *ep = &dev->ep[DWC_EP_PHY_TO_INDEX(ep_phy_num)];
+
 	DBG("\n\n\n++EP_EVENT: %s in ctrl_state: %s ep_state[%d]: %s",
 		event_lookup_ep[event_id],
 		dev_ctrl_state_lookup[dev->ctrl_state],
@@ -1393,7 +1359,6 @@ void dwc_event_handler_ep_bulk(dwc_dev_t *dev, uint32_t *event)
 
 	DBG("\n ep_phy_num = %d param = 0x%x status = 0x%x",
 			ep_phy_num, event_param, event_status);
-#endif
 
 	switch (ep->state)
 	{
@@ -1419,13 +1384,11 @@ void dwc_event_handler_ep_bulk(dwc_dev_t *dev, uint32_t *event)
 		ASSERT(0);
 	}
 
-#ifdef DEBUG_USB
 	DBG("\n--EP_EVENT: %s in ctrl_state: %s ep_state[%d]: %s",
 		event_lookup_ep[event_id],
 		dev_ctrl_state_lookup[dev->ctrl_state],
 		ep_phy_num,
 		ep_state_lookup[ep->state]);
-#endif
 }
 
 
@@ -1440,7 +1403,6 @@ void dwc_event_handler_ep_bulk(dwc_dev_t *dev, uint32_t *event)
  */
 static void dwc_ep_config_init_enable(dwc_dev_t *dev, uint8_t index)
 {
-	ASSERT(index < DWC_MAX_NUM_OF_EP);
 	uint8_t ep_phy_num = dev->ep[index].phy_num;
 
 	dwc_ep_cmd_set_config(dev, index, SET_CONFIG_ACTION_INIT);
@@ -1463,7 +1425,6 @@ static void dwc_ep_ctrl_init(dwc_dev_t *dev)
 
 	/* Control OUT */
 	index = DWC_EP_INDEX(0, DWC_EP_DIRECTION_OUT);
-	ASSERT(index < DWC_MAX_NUM_OF_EP);
 
 	dev->ep[index].number            = 0;
 	dev->ep[index].dir               = DWC_EP_DIRECTION_OUT;
@@ -1534,9 +1495,7 @@ static void dwc_ep_ctrl_state_setup_enter(dwc_dev_t *dev)
 /* entry function into inactive state for data transfer fsm */
 static void dwc_ep_bulk_state_inactive_enter(dwc_dev_t *dev, uint8_t ep_phy_num)
 {
-	ASSERT(DWC_EP_PHY_TO_INDEX(ep_phy_num) < DWC_MAX_NUM_OF_EP);
 	dwc_ep_t *ep = &dev->ep[DWC_EP_PHY_TO_INDEX(ep_phy_num)];
-	ASSERT(ep != NULL);
 
 	/* queue request to receive the first setup pkt from host */
 	ep->req.data     = NULL;
@@ -1612,26 +1571,24 @@ void dwc_device_init(dwc_dev_t *dev)
  * every time. The cleanup during usb reset is not cleanly removing the
  * endpoints added during a set config. This works fine for our usecase.
  */
-void dwc_device_add_ep(dwc_dev_t *dev, dwc_ep_t *new_ep)
+void dwc_device_add_ep(dwc_dev_t *dev, dwc_ep_t new_ep)
 {
-	uint8_t index = DWC_EP_INDEX(new_ep->number, new_ep->dir);
+	uint8_t index = DWC_EP_INDEX(new_ep.number, new_ep.dir);
 
-	ASSERT(index < DWC_MAX_NUM_OF_EP);
 	dwc_ep_t *ep = &dev->ep[index];
-	ASSERT(ep != NULL);
 
 	memset(ep, 0, sizeof(ep));
 
 	/* copy client specified params */
 
-	ep->number        = new_ep->number;
-	ep->dir           = new_ep->dir;
-	ep->type          = new_ep->type;
-	ep->max_pkt_size  = new_ep->max_pkt_size;
-	ep->burst_size    = new_ep->burst_size;
-	ep->zlp           = new_ep->zlp;
-	ep->trb_count     = new_ep->trb_count;
-	ep->trb           = new_ep->trb;
+	ep->number        = new_ep.number;
+	ep->dir           = new_ep.dir;
+	ep->type          = new_ep.type;
+	ep->max_pkt_size  = new_ep.max_pkt_size;
+	ep->burst_size    = new_ep.burst_size;
+	ep->zlp           = new_ep.zlp;
+	ep->trb_count     = new_ep.trb_count;
+	ep->trb           = new_ep.trb;
 
 	ASSERT(ep->trb);
 
@@ -1704,9 +1661,7 @@ static int dwc_request_queue(dwc_dev_t     *dev,
 							 uint8_t        ep_phy_num,
 							 dwc_request_t *req)
 {
-	ASSERT(DWC_EP_PHY_TO_INDEX(ep_phy_num) < DWC_MAX_NUM_OF_EP);
 	dwc_ep_t *ep = &dev->ep[DWC_EP_PHY_TO_INDEX(ep_phy_num)];
-	ASSERT(ep != NULL);
 
 	dwc_trb_t *trb          = ep->trb;
 	uint8_t *data_ptr       = req->data;

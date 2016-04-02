@@ -104,10 +104,6 @@
 #define UFS_IS_HCFES                        BIT(16)
 #define UFS_IS_SBFES                        BIT(17)
 
-/* Bit field for UIC Error decode */
-#define UFS_IS_UECPA                        BIT(31)
-#define UFS_IS_UECDL                        BIT(31)
-
 /* Bit field for UFS_HCE register. */
 #define UFS_HCE_ENABLE                      BIT(0)
 

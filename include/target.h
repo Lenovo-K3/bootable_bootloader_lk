@@ -59,6 +59,7 @@ void target_fastboot_init(void);
 void target_load_ssd_keystore(void);
 bool target_is_ssd_enabled(void);
 void *target_mmc_device();
+uint32_t target_boot_device_emmc();
 uint32_t is_user_force_reset(void);
 
 bool target_display_panel_node(char *panel_name, char *pbuf,
@@ -72,19 +73,13 @@ const char * target_usb_controller();
 void target_usb_phy_reset(void);
 void target_usb_phy_mux_configure(void);
 target_usb_iface_t * target_usb30_init();
-bool target_is_cdp_qvga();
-uint32_t target_hw_interposer();
-uint32_t target_override_pll();
-uint32_t target_ddr_cfg_val();
-void target_usb_init(void);
-void target_usb_stop(void);
-uint32_t target_get_hlos_subtype(void);
-void shutdown_device();
-bool target_warm_boot(void);
-bool target_use_signed_kernel(void);
-int _emmc_recovery_init(void);
-void ulpi_write(unsigned val, unsigned reg);
-void target_crypto_init_params(void);
-int target_cont_splash_screen(void);
-bool target_build_variant_user();
+
+/* Boot device */
+enum boot_device
+{
+	BOOT_DEFAULT=0,
+	BOOT_EMMC=2,
+	BOOT_UFS=4,
+};
+
 #endif

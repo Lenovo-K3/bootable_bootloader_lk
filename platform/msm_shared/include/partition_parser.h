@@ -73,7 +73,6 @@
 #define PARTITION_TYPE_GUID_SIZE   16
 #define UNIQUE_PARTITION_GUID_SIZE 16
 #define NUM_PARTITIONS             128
-#define PART_ATT_READONLY_OFFSET   60
 
 /* Some useful define used to access the MBR/EBR table */
 #define BLOCK_SIZE                0x200
@@ -159,12 +158,6 @@ struct partition_entry {
 	uint8_t lun;
 };
 
-/* Partition info requested by app layer */
-struct partition_info {
-	uint64_t offset;
-	uint64_t size;
-};
-
 int partition_get_index(const char *name);
 unsigned long long partition_get_size(int index);
 unsigned long long partition_get_offset(int index);
@@ -172,14 +165,8 @@ uint8_t partition_get_lun(int index);
 unsigned int partition_read_table();
 unsigned int write_partition(unsigned size, unsigned char *partition);
 bool partition_gpt_exists();
-/* Return the partition offset & size to app layer
- * Caller should validate the size & offset !=0
- */
-
-struct partition_info partition_get_info(const char *name);
 
 /* For Debugging */
 void partition_dump(void);
-/* Read only attribute for partition */
-int partition_read_only(int index);
+
 #endif

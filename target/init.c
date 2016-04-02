@@ -1,8 +1,6 @@
 /*
  * Copyright (c) 2008 Travis Geiselbrecht
  *
- * Copyright (c) 2015, The Linux Foundation. All rights reserved.
- *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files
  * (the "Software"), to deal in the Software without restriction,
@@ -27,7 +25,6 @@
 #include <target.h>
 #include <compiler.h>
 #include <dload_util.h>
-#include <sdhci_msm.h>
 
 #define EXPAND(NAME) #NAME
 #define TARGET(NAME) EXPAND(NAME)
@@ -54,11 +51,6 @@ __WEAK unsigned target_get_max_flash_size(void)
     return (120 * 1024 * 1024);
 }
 
-__WEAK int flash_ubi_img(void)
-{
-    return 0;
-}
-
 __WEAK int target_is_emmc_boot(void)
 {
 #if _EMMC_BOOT
@@ -69,11 +61,6 @@ __WEAK int target_is_emmc_boot(void)
 }
 
 __WEAK unsigned check_reboot_mode(void)
-{
-    return 0;
-}
-
-__WEAK unsigned check_hard_reboot_mode(void)
 {
     return 0;
 }
@@ -173,6 +160,16 @@ __WEAK void target_display_shutdown(void)
 {
 }
 
+__WEAK uint32_t target_boot_device_emmc()
+{
+	return 1;
+}
+
+__WEAK uint32_t target_get_boot_device()
+{
+	return 0;
+}
+
 __WEAK uint8_t target_panel_auto_detect_enabled()
 {
 	return 0;
@@ -204,25 +201,4 @@ __WEAK bool target_warm_boot(void)
 __WEAK uint32_t target_get_hlos_subtype(void)
 {
 	return 0;
-}
-
-/* Initialize crypto parameters */
-__WEAK void target_crypto_init_params()
-{
-}
-
-/* Default CFG delay value */
-__WEAK uint32_t target_ddr_cfg_val()
-{
-	return DDR_CONFIG_VAL;
-}
-
-/* Return Build variant */
-__WEAK bool target_build_variant_user()
-{
-#if USER_BUILD_VARIANT
-	return true;
-#else
-	return false;
-#endif
 }

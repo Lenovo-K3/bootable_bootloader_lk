@@ -35,13 +35,6 @@
 #include <pm8x41.h>
 #include <platform/timer.h>
 
-static uint8_t mpp_slave_id;
-
-uint8_t pmi8994_config_mpp_slave_id(uint8_t slave_id)
-{
-	mpp_slave_id = slave_id;
-}
-
 /* SPMI helper functions */
 uint8_t pm8x41_reg_read(uint32_t addr)
 {
@@ -147,85 +140,6 @@ int pm8x41_gpio_set(uint8_t gpio, uint8_t value)
 {
 	uint32_t gpio_base = GPIO_N_PERIPHERAL_BASE(gpio);
 	uint8_t val;
-
-	/* Set the output value of the gpio */
-	val = REG_READ(gpio_base + GPIO_MODE_CTL);
-	val = (val & ~PM_GPIO_OUTPUT_MASK) | value;
-	REG_WRITE(gpio_base + GPIO_MODE_CTL, val);
-
-	return 0;
-}
-
-/* Configure PM and PMI GPIO with slave id */
-int pm8x41_gpio_config_sid(uint8_t sid, uint8_t gpio, struct pm8x41_gpio *config)
-{
-	uint8_t  val;
-	uint32_t gpio_base = GPIO_N_PERIPHERAL_BASE(gpio);
-
-	gpio_base &= 0x0ffff;	/* clear sid */
-	gpio_base |= (sid << 16);	/* add sid */
-
-	dprintf(SPEW, "%s: gpio=%d base=%x\n", __func__, gpio, gpio_base);
-
-	/* Disable the GPIO */
-	val  = REG_READ(gpio_base + GPIO_EN_CTL);
-	val &= ~BIT(PERPH_EN_BIT);
-	REG_WRITE(gpio_base + GPIO_EN_CTL, val);
-
-	/* Select the mode */
-	val = config->function | (config->direction << 4);
-	REG_WRITE(gpio_base + GPIO_MODE_CTL, val);
-
-	/* Set the right pull */
-	val = config->pull;
-	REG_WRITE(gpio_base + GPIO_DIG_PULL_CTL, val);
-
-	/* Select the VIN */
-	val = config->vin_sel;
-	REG_WRITE(gpio_base + GPIO_DIG_VIN_CTL, val);
-
-	if (config->direction == PM_GPIO_DIR_OUT) {
-		/* Set the right dig out control */
-		val = config->out_strength | (config->output_buffer << 4);
-		REG_WRITE(gpio_base + GPIO_DIG_OUT_CTL, val);
-	}
-
-	/* Enable the GPIO */
-	val  = REG_READ(gpio_base + GPIO_EN_CTL);
-	val |= BIT(PERPH_EN_BIT);
-	REG_WRITE(gpio_base + GPIO_EN_CTL, val);
-
-	return 0;
-}
-
-/* Reads the status of requested gpio */
-int pm8x41_gpio_get_sid(uint8_t sid, uint8_t gpio, uint8_t *status)
-{
-	uint32_t gpio_base = GPIO_N_PERIPHERAL_BASE(gpio);
-
-	gpio_base &= 0x0ffff;	/* clear sid */
-	gpio_base |= (sid << 16);	/* add sid */
-
-	*status = REG_READ(gpio_base + GPIO_STATUS);
-
-	/* Return the value of the GPIO pin */
-	*status &= BIT(GPIO_STATUS_VAL_BIT);
-
-	dprintf(SPEW, "GPIO %d status is %d\n", gpio, *status);
-
-	return 0;
-}
-
-/* Write the output value of the requested gpio */
-int pm8x41_gpio_set_sid(uint8_t sid, uint8_t gpio, uint8_t value)
-{
-	uint32_t gpio_base = GPIO_N_PERIPHERAL_BASE(gpio);
-	uint8_t val;
-
-	gpio_base &= 0x0ffff;	/* clear sid */
-	gpio_base |= (sid << 16);	/* add sid */
-
-	dprintf(SPEW, "%s: gpio=%d base=%x\n", __func__, gpio, gpio_base);
 
 	/* Set the output value of the gpio */
 	val = REG_READ(gpio_base + GPIO_MODE_CTL);
@@ -456,21 +370,6 @@ void pm8x41_lpg_write(uint8_t chan, uint8_t off, uint8_t val)
 	REG_WRITE(lpg_base + off, val);
 }
 
-/*
- * pmi lpg channel register write with slave_id:
- */
-void pm8x41_lpg_write_sid(uint8_t sid, uint8_t chan, uint8_t off, uint8_t val)
-{
-	uint32_t lpg_base = LPG_N_PERIPHERAL_BASE(chan);
-
-	lpg_base &= 0x0ffff;	/* clear sid */
-	lpg_base |= (sid << 16);	/* add sid */
-
-	dprintf(SPEW, "%s: lpg=%d base=%x\n", __func__, chan, lpg_base);
-
-	REG_WRITE(lpg_base + off, val);
-}
-
 uint8_t pm8x41_get_pmic_rev()
 {
 	return REG_READ(REVID_REVISION4);
@@ -491,27 +390,20 @@ uint8_t pm8x41_get_pon_poff_reason2()
 	return REG_READ(PON_POFF_REASON2);
 }
 
-void pm8x41_enable_mvs(struct pm8x41_mvs *mvs, enum mvs_en_ctl enable)
-{
-	ASSERT(mvs);
-
-	REG_WRITE(mvs->base + MVS_EN_CTL, enable << MVS_EN_CTL_ENABLE_SHIFT);
-}
-
 void pm8x41_enable_mpp(struct pm8x41_mpp *mpp, enum mpp_en_ctl enable)
 {
 	ASSERT(mpp);
 
-	REG_WRITE(((mpp->base + MPP_EN_CTL) + (mpp_slave_id << 16)), enable << MPP_EN_CTL_ENABLE_SHIFT);
+	REG_WRITE(mpp->base + MPP_EN_CTL, enable << MPP_EN_CTL_ENABLE_SHIFT);
 }
 
 void pm8x41_config_output_mpp(struct pm8x41_mpp *mpp)
 {
 	ASSERT(mpp);
 
-	REG_WRITE(((mpp->base + MPP_DIG_VIN_CTL) + (mpp_slave_id << 16)), mpp->vin);
+	REG_WRITE(mpp->base + MPP_DIG_VIN_CTL, mpp->vin);
 
-	REG_WRITE(((mpp->base + MPP_MODE_CTL) + (mpp_slave_id << 16)), mpp->mode | (MPP_DIGITAL_OUTPUT << MPP_MODE_CTL_MODE_SHIFT));
+	REG_WRITE(mpp->base + MPP_MODE_CTL, mpp->mode | (MPP_DIGITAL_OUTPUT << MPP_MODE_CTL_MODE_SHIFT));
 }
 
 uint8_t pm8x41_get_is_cold_boot()

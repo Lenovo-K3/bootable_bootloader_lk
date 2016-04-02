@@ -74,7 +74,12 @@ void * __stack_chk_guard;
 /*
 * Initialize the stack protector canary value.
 */
-#define __stack_chk_guard_setup() do { __stack_chk_guard = get_canary(); } while(0)
+static inline void __stack_chk_guard_setup()
+{
+	void *canary;
+	canary = get_canary();
+	__stack_chk_guard =  canary;
+}
 
 void __attribute__ ((noreturn))
 	__stack_chk_fail (void);
