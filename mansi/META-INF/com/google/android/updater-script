@@ -1,0 +1,2 @@
+ui_print("update image emmc_appsboot.mbn...");
+package_extract_file("emmc_appsboot.mbn", "/dev/block/bootdevice/by-name/aboot");
