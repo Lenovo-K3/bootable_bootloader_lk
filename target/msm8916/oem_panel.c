@@ -50,6 +50,7 @@
 #include "include/panel_nt35596_1080p_skuk_video.h"
 #include "include/panel_sharp_wqxga_dualdsi_video.h"
 #include "include/panel_hx8379a_fwvga_video.h"
+#include "include/panel_hx8394d_720p_video.h"
 
 #define DISPLAY_MAX_PANEL_DETECTION 2
 #define OTM8019A_FWVGA_VIDEO_PANEL_ON_DELAY 50
@@ -69,6 +70,7 @@ OTM1283A_720P_VIDEO_PANEL,
 NT35596_1080P_VIDEO_PANEL,
 SHARP_WQXGA_DUALDSI_VIDEO_PANEL,
 HX8379A_FWVGA_VIDEO_PANEL,
+HX8394D_720P_VIDEO_PANEL,
 UNKNOWN_PANEL
 };
 
@@ -86,6 +88,7 @@ static struct panel_list supp_panels[] = {
 	{"nt35596_1080p_video", NT35596_1080P_VIDEO_PANEL},
 	{"sharp_wqxga_dualdsi_video",SHARP_WQXGA_DUALDSI_VIDEO_PANEL},
 	{"hx8379a_wvga_video", HX8379A_FWVGA_VIDEO_PANEL},
+	{"hx8394d_720p_video", HX8394D_720P_VIDEO_PANEL},
 };
 
 static uint32_t panel_id;
@@ -124,189 +127,26 @@ static bool init_panel_data(struct panel_struct *panelstruct,
 	bool ret = true;
 
 	switch (panel_id) {
-	case JDI_1080P_VIDEO_PANEL:
-		panelstruct->paneldata    = &jdi_1080p_video_panel_data;
-		panelstruct->paneldata->panel_with_enable_gpio = 1;
-		panelstruct->panelres     = &jdi_1080p_video_panel_res;
-		panelstruct->color        = &jdi_1080p_video_color;
-		panelstruct->videopanel   = &jdi_1080p_video_video_panel;
-		panelstruct->commandpanel = &jdi_1080p_video_command_panel;
-		panelstruct->state        = &jdi_1080p_video_state;
-		panelstruct->laneconfig   = &jdi_1080p_video_lane_config;
+	case HX8394D_720P_VIDEO_PANEL:
+		panelstruct->paneldata	  = &hx8394d_720p_video_panel_data;
+		panelstruct->panelres	  = &hx8394d_720p_video_panel_res;
+		panelstruct->color		  = &hx8394d_720p_video_color;
+		panelstruct->videopanel   = &hx8394d_720p_video_video_panel;
+		panelstruct->commandpanel = &hx8394d_720p_video_command_panel;
+		panelstruct->state		  = &hx8394d_720p_video_state;
+		panelstruct->laneconfig   = &hx8394d_720p_video_lane_config;
 		panelstruct->paneltiminginfo
-			= &jdi_1080p_video_timing_info;
+					 = &hx8394d_720p_video_timing_info;
 		panelstruct->panelresetseq
-					 = &jdi_1080p_video_panel_reset_seq;
-		panelstruct->backlightinfo = &jdi_1080p_video_backlight;
+					 = &hx8394d_720p_video_panel_reset_seq;
+		panelstruct->backlightinfo = &hx8394d_720p_video_backlight;
 		pinfo->mipi.panel_cmds
-			= jdi_1080p_video_on_command;
+					= hx8394d_720p_video_on_command;
 		pinfo->mipi.num_of_panel_cmds
-			= JDI_1080P_VIDEO_ON_COMMAND;
+					= HX8394D_720P_VIDEO_ON_COMMAND;
 		memcpy(phy_db->timing,
-			jdi_1080p_video_timings, TIMING_SIZE);
-		pinfo->mipi.signature 	= JDI_1080P_VIDEO_SIGNATURE;
-		break;
-	case NT35590_720P_VIDEO_PANEL:
-		panelstruct->paneldata    = &nt35590_720p_video_panel_data;
-		panelstruct->panelres     = &nt35590_720p_video_panel_res;
-		panelstruct->color        = &nt35590_720p_video_color;
-		panelstruct->videopanel   = &nt35590_720p_video_video_panel;
-		panelstruct->commandpanel = &nt35590_720p_video_command_panel;
-		panelstruct->state        = &nt35590_720p_video_state;
-		panelstruct->laneconfig   = &nt35590_720p_video_lane_config;
-		panelstruct->paneltiminginfo
-					 = &nt35590_720p_video_timing_info;
-		panelstruct->panelresetseq
-					 = &nt35590_720p_video_panel_reset_seq;
-		panelstruct->backlightinfo = &nt35590_720p_video_backlight;
-		pinfo->mipi.panel_cmds
-					= nt35590_720p_video_on_command;
-		pinfo->mipi.num_of_panel_cmds
-					= NT35590_720P_VIDEO_ON_COMMAND;
-		memcpy(phy_db->timing,
-				nt35590_720p_video_timings, TIMING_SIZE);
-		pinfo->mipi.signature 	= NT35590_720P_VIDEO_SIGNATURE;
-		break;
-	case NT35590_720P_CMD_PANEL:
-		panelstruct->paneldata    = &nt35590_720p_cmd_panel_data;
-		panelstruct->panelres     = &nt35590_720p_cmd_panel_res;
-		panelstruct->color        = &nt35590_720p_cmd_color;
-		panelstruct->videopanel   = &nt35590_720p_cmd_video_panel;
-		panelstruct->commandpanel = &nt35590_720p_cmd_command_panel;
-		panelstruct->state        = &nt35590_720p_cmd_state;
-		panelstruct->laneconfig   = &nt35590_720p_cmd_lane_config;
-		panelstruct->paneltiminginfo = &nt35590_720p_cmd_timing_info;
-		panelstruct->panelresetseq
-					= &nt35590_720p_cmd_panel_reset_seq;
-		panelstruct->backlightinfo = &nt35590_720p_cmd_backlight;
-		pinfo->mipi.panel_cmds
-					= nt35590_720p_cmd_on_command;
-		pinfo->mipi.num_of_panel_cmds
-					= NT35590_720P_CMD_ON_COMMAND;
-		memcpy(phy_db->timing,
-				nt35590_720p_cmd_timings, TIMING_SIZE);
-		pinfo->mipi.signature 	= NT35590_720P_CMD_SIGNATURE;
-		break;
-	case INNOLUX_720P_VIDEO_PANEL:
-		panelstruct->paneldata    = &innolux_720p_video_panel_data;
-		panelstruct->panelres     = &innolux_720p_video_panel_res;
-		panelstruct->color        = &innolux_720p_video_color;
-		panelstruct->videopanel   = &innolux_720p_video_video_panel;
-		panelstruct->commandpanel = &innolux_720p_video_command_panel;
-		panelstruct->state        = &innolux_720p_video_state;
-		panelstruct->laneconfig   = &innolux_720p_video_lane_config;
-		panelstruct->paneltiminginfo
-					= &innolux_720p_video_timing_info;
-		panelstruct->panelresetseq
-					= &innolux_720p_video_reset_seq;
-		panelstruct->backlightinfo = &innolux_720p_video_backlight;
-		pinfo->mipi.panel_cmds
-					= innolux_720p_video_on_command;
-		pinfo->mipi.num_of_panel_cmds
-					= INNOLUX_720P_VIDEO_ON_COMMAND;
-		memcpy(phy_db->timing,
-				innolux_720p_video_timings, TIMING_SIZE);
-		break;
-	case OTM8019A_FWVGA_VIDEO_PANEL:
-		panelstruct->paneldata    = &otm8019a_fwvga_video_panel_data;
-		panelstruct->panelres     = &otm8019a_fwvga_video_panel_res;
-		panelstruct->color        = &otm8019a_fwvga_video_color;
-		panelstruct->videopanel   = &otm8019a_fwvga_video_video_panel;
-		panelstruct->commandpanel = &otm8019a_fwvga_video_command_panel;
-		panelstruct->state        = &otm8019a_fwvga_video_state;
-		panelstruct->laneconfig   = &otm8019a_fwvga_video_lane_config;
-		panelstruct->paneltiminginfo
-					= &otm8019a_fwvga_video_timing_info;
-		panelstruct->panelresetseq
-					= &otm8019a_fwvga_video_reset_seq;
-		panelstruct->backlightinfo = &otm8019a_fwvga_video_backlight;
-		pinfo->mipi.panel_cmds
-					= otm8019a_fwvga_video_on_command;
-		pinfo->mipi.num_of_panel_cmds
-					= OTM8019A_FWVGA_VIDEO_ON_COMMAND;
-		memcpy(phy_db->timing,
-				otm8019a_fwvga_video_timings, TIMING_SIZE);
-		break;
-	case OTM1283A_720P_VIDEO_PANEL:
-		panelstruct->paneldata    = &otm1283a_720p_video_panel_data;
-		panelstruct->panelres     = &otm1283a_720p_video_panel_res;
-		panelstruct->color        = &otm1283a_720p_video_color;
-		panelstruct->videopanel   = &otm1283a_720p_video_video_panel;
-		panelstruct->commandpanel = &otm1283a_720p_video_command_panel;
-		panelstruct->state        = &otm1283a_720p_video_state;
-		panelstruct->laneconfig   = &otm1283a_720p_video_lane_config;
-		panelstruct->paneltiminginfo
-					= &otm1283a_720p_video_timing_info;
-		panelstruct->panelresetseq
-					= &otm1283a_720p_video_reset_seq;
-		panelstruct->backlightinfo = &otm1283a_720p_video_backlight;
-		pinfo->mipi.panel_cmds
-					= otm1283a_720p_video_on_command;
-		pinfo->mipi.num_of_panel_cmds
-					= OTM1283A_720P_VIDEO_ON_COMMAND;
-		memcpy(phy_db->timing,
-				otm1283a_720p_video_timings, TIMING_SIZE);
-		break;
-	case NT35596_1080P_VIDEO_PANEL:
-		panelstruct->paneldata    = &nt35596_1080p_skuk_video_panel_data;
-		panelstruct->panelres     = &nt35596_1080p_skuk_video_panel_res;
-		panelstruct->color        = &nt35596_1080p_skuk_video_color;
-		panelstruct->videopanel   = &nt35596_1080p_skuk_video_video_panel;
-		panelstruct->commandpanel = &nt35596_1080p_skuk_video_command_panel;
-		panelstruct->state        = &nt35596_1080p_skuk_video_state;
-		panelstruct->laneconfig   = &nt35596_1080p_skuk_video_lane_config;
-		panelstruct->paneltiminginfo
-					= &nt35596_1080p_skuk_video_timing_info;
-		panelstruct->panelresetseq
-					= &nt35596_1080p_skuk_video_reset_seq;
-		panelstruct->backlightinfo = &nt35596_1080p_skuk_video_backlight;
-		pinfo->mipi.panel_cmds
-					= nt35596_1080p_skuk_video_on_command;
-		pinfo->mipi.num_of_panel_cmds
-					= NT35596_1080P_SKUK_VIDEO_ON_COMMAND;
-		memcpy(phy_db->timing,
-				nt35596_1080p_skuk_video_timings, TIMING_SIZE);
-		break;
-	case SHARP_WQXGA_DUALDSI_VIDEO_PANEL:
-		panelstruct->paneldata    = &sharp_wqxga_dualdsi_video_panel_data;
-		panelstruct->panelres     = &sharp_wqxga_dualdsi_video_panel_res;
-		panelstruct->color        = &sharp_wqxga_dualdsi_video_color;
-		panelstruct->videopanel   = &sharp_wqxga_dualdsi_video_video_panel;
-		panelstruct->commandpanel = &sharp_wqxga_dualdsi_video_command_panel;
-		panelstruct->state        = &sharp_wqxga_dualdsi_video_state;
-		panelstruct->laneconfig   = &sharp_wqxga_dualdsi_video_lane_config;
-		panelstruct->paneltiminginfo
-			= &sharp_wqxga_dualdsi_video_timing_info;
-		panelstruct->panelresetseq
-					 = &sharp_wqxga_dualdsi_video_reset_seq;
-		panelstruct->backlightinfo = &sharp_wqxga_dualdsi_video_backlight;
-		pinfo->mipi.panel_cmds
-			= sharp_wqxga_dualdsi_video_on_command;
-		pinfo->mipi.num_of_panel_cmds
-			= SHARP_WQXGA_DUALDSI_VIDEO_ON_COMMAND;
-		memcpy(phy_db->timing,
-			sharp_wqxga_dualdsi_video_timings, TIMING_SIZE);
-		pinfo->mipi.signature 	= SHARP_WQXGA_DUALDSI_VIDEO_SIGNATURE;
-		break;
-	case HX8379A_FWVGA_VIDEO_PANEL:
-		panelstruct->paneldata    = &hx8379a_fwvga_video_panel_data;
-		panelstruct->panelres     = &hx8379a_fwvga_video_panel_res;
-		panelstruct->color        = &hx8379a_fwvga_video_color;
-		panelstruct->videopanel   = &hx8379a_fwvga_video_video_panel;
-		panelstruct->commandpanel = &hx8379a_fwvga_video_command_panel;
-		panelstruct->state        = &hx8379a_fwvga_video_state;
-		panelstruct->laneconfig   = &hx8379a_fwvga_video_lane_config;
-		panelstruct->paneltiminginfo
-				= &hx8379a_fwvga_video_timing_info;
-		panelstruct->panelresetseq
-				= &hx8379a_fwvga_video_reset_seq;
-		panelstruct->backlightinfo = &hx8379a_fwvga_video_backlight;
-		pinfo->mipi.panel_cmds
-				= hx8379a_fwvga_video_on_command;
-		pinfo->mipi.num_of_panel_cmds
-				= HX8379A_FWVGA_VIDEO_ON_COMMAND;
-		memcpy(phy_db->timing,
-				hx8379a_fwvga_video_timings, TIMING_SIZE);
+				hx8394d_720p_video_timings, TIMING_SIZE);
+		pinfo->mipi.signature = HX8394D_720P_VIDEO_SIGNATURE;
 		break;
 	case UNKNOWN_PANEL:
 	default:
@@ -354,25 +194,10 @@ bool oem_panel_select(const char *panel_name, struct panel_struct *panelstruct,
 	}
 
 	switch (hw_id) {
-	case HW_PLATFORM_MTP:
-		panel_id = JDI_1080P_VIDEO_PANEL;
-		break;
 	case HW_PLATFORM_SURF:
-		panel_id = JDI_1080P_VIDEO_PANEL;
-		switch (auto_pan_loop) {
-		case 0:
-			panel_id = JDI_1080P_VIDEO_PANEL;
-			break;
-		case 1:
-			panel_id = NT35590_720P_VIDEO_PANEL;
-			break;
-		default:
-			panel_id = UNKNOWN_PANEL;
-			ret = false;
-			dprintf(CRITICAL, "Unknown panel\n");
-			return ret;
-		}
-		auto_pan_loop++;
+	case HW_PLATFORM_MTP:
+	case HW_PLATFORM_RCM:
+		panel_id = HX8394D_720P_VIDEO_PANEL;
 		break;
 	case HW_PLATFORM_QRD:
 		target_id = board_target_id();
